@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     default: "Megorah AI",
     template: "%s — Megorah CRM",
   },
-  description: "Self-hostable CRM template for WhatsApp.",
+  description: "Megorah Ai CRM.",
   robots: {
     index: false,
     follow: false,
