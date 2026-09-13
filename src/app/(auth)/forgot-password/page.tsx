@@ -28,10 +28,8 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     const supabase = createClient();
-
     const origin = window.location.origin;
-    const redirectTo =
-      origin + "/auth/callback?next=/reset-password";
+    const redirectTo = origin + "/auth/callback?next=/reset-password";
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: redirectTo,
@@ -55,11 +53,9 @@ export default function ForgotPasswordPage() {
             <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
               <CheckCircle className="h-6 w-6 text-primary" />
             </div>
-
             <CardTitle className="text-xl text-foreground">
               Check your email
             </CardTitle>
-
             <CardDescription className="text-muted-foreground">
               We&apos;ve sent a password reset link to{" "}
               <span className="text-foreground">{email}</span>. Please check
@@ -140,7 +136,8 @@ export default function ForgotPasswordPage() {
             Back to sign in
           </Link>
         </CardContent>
-      </div>
+      </Card>
+    </div>
   );
 }
 ```
