@@ -1,4 +1,3 @@
-```tsx
 "use client";
 
 import { useState } from "react";
@@ -28,11 +27,11 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const origin = window.location.origin;
-    const redirectTo = origin + "/auth/callback?next=/reset-password";
+    const redirectTo =
+      window.location.origin + "/auth/callback?next=/reset-password";
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: redirectTo,
+      redirectTo,
     });
 
     if (error) {
@@ -57,12 +56,11 @@ export default function ForgotPasswordPage() {
               Check your email
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              We&apos;ve sent a password reset link to{" "}
+              We&apos;ve sent a password reset link to {" "}
               <span className="text-foreground">{email}</span>. Please check
               your inbox.
             </CardDescription>
           </CardHeader>
-
           <CardContent>
             <Link href="/login">
               <Button
@@ -85,11 +83,9 @@ export default function ForgotPasswordPage() {
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
             <MessageSquare className="h-6 w-6 text-primary" />
           </div>
-
           <CardTitle className="text-xl text-foreground">
             Reset password
           </CardTitle>
-
           <CardDescription className="text-muted-foreground">
             Enter your email and we&apos;ll send you a reset link
           </CardDescription>
@@ -107,7 +103,6 @@ export default function ForgotPasswordPage() {
               <Label htmlFor="email" className="text-muted-foreground">
                 Email
               </Label>
-
               <Input
                 id="email"
                 type="email"
@@ -140,4 +135,3 @@ export default function ForgotPasswordPage() {
     </div>
   );
 }
-```
