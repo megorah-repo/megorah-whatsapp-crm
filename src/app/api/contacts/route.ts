@@ -17,7 +17,9 @@ export async function POST(request: Request) {
   if (!sameOrigin(request)) return errorResponse(403, "Invalid request origin");
 
   const authClient = await createClient();
-  const { data: { user } } = await authClient.auth.getUser();
+  const {
+    data: { user },
+  } = await authClient.auth.getUser();
   if (!user) return errorResponse(401, "Not authenticated");
 
   let body: Record<string, unknown>;
@@ -36,15 +38,24 @@ export async function POST(request: Request) {
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const company = typeof body.company === "string" ? body.company.trim() : "";
 
-  if (!phone || phone.length > MAX_PHONE) return errorResponse(400, "A valid phone number is required");
-  if (name && (!isSafeName(name) || Buffer.byteLength(name, "utf8") > 120)) return errorResponse(400, "Invalid name");
-  if (email.length > MAX_EMAIL || company.length > MAX_COMPANY) return errorResponse(400, "Contact field is too long");
+  if (!phone || phone.length > MAX_PHONE) {
+    return errorResponse(400, "A valid phone number is required");
+  }
+  if (name && (!isSafeName(name) || Buffer.byteLength(name, "utf8") > 120)) {
+    return errorResponse(400, "Invalid name");
+  }
+  if (email.length > MAX_EMAIL || company.length > MAX_COMPANY) {
+    return errorResponse(400, "Contact field is too long");
+  }
 
   let admin;
   try {
     admin = createPlatformAdminClient();
   } catch (error) {
-    console.error("[contacts] admin client unavailable", error instanceof Error ? error.message : error);
+    console.error(
+      "[contacts] admin client unavailable",
+      error instanceof Error ? error.message : error,
+    );
     return errorResponse(500, "Contact database is not configured");
   }
 
@@ -65,20 +76,33 @@ export async function POST(request: Request) {
     return errorResponse(403, "You do not have permission to create contacts");
   }
 
-  const { data: existing, error: existingError } = await admin
+  // Do not use maybeSingle() here. Legacy data can contain duplicate phone rows,
+  // and PostgREST returns an error when maybeSingle() matches more than one row.
+  // We only need to know whether at least one matching contact exists.
+  const { data: existingRows, error: existingError } = await admin
     .from("contacts")
     .select("id, name, phone")
     .eq("account_id", profile.account_id)
     .eq("phone", phone)
-    .maybeSingle();
+    .limit(1);
 
   if (existingError) {
-    console.error("[contacts] duplicate lookup failed", existingError.message);
+    console.error("[contacts] duplicate lookup failed", {
+      code: existingError.code,
+      message: existingError.message,
+      details: existingError.details,
+      hint: existingError.hint,
+    });
     return errorResponse(500, "Unable to check contact");
   }
+
+  const existing = existingRows?.[0] ?? null;
   if (existing) {
     return NextResponse.json(
-      { error: "A contact with this phone number already exists.", existingContact: existing },
+      {
+        error: "A contact with this phone number already exists.",
+        existingContact: existing,
+      },
       { status: 409 },
     );
   }
@@ -97,7 +121,9 @@ export async function POST(request: Request) {
     .single();
 
   if (insertError) {
-    if (insertError.code === "23505") return errorResponse(409, "A contact with this phone number already exists.");
+    if (insertError.code === "23505") {
+      return errorResponse(409, "A contact with this phone number already exists.");
+    }
     console.error("[contacts] insert failed", {
       code: insertError.code,
       message: insertError.message,
