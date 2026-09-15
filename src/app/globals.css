@@ -39,11 +39,6 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  /* Secondary card surface (tile / hover backgrounds) and the accent
-   * extras the Settings redesign leans on. The raw --primary-* vars
-   * already exist per-accent below; these mappings expose them (and
-   * --card-2) as Tailwind utilities: bg-card-2, bg-primary-soft,
-   * bg-primary-soft-2, hover:bg-primary-hover. */
   --color-card-2: var(--card-2);
   --color-primary-hover: var(--primary-hover);
   --color-primary-soft: var(--primary-soft);
@@ -56,35 +51,6 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 }
-
-/* ============================================================
- * THEMING — two orthogonal dimensions
- *
- *   1. MODE   (light / dark)  → neutral surfaces. Selected with
- *      `document.documentElement.dataset.mode`. Defaults to dark.
- *   2. ACCENT (violet / …)    → the primary color only. Selected
- *      with `document.documentElement.dataset.theme`.
- *
- * The two compose: any accent works in either mode. Neutral
- * tokens (background / card / border / muted / sidebar surfaces /
- * neutral charts / radius) live in the MODE blocks below; accent
- * tokens (--primary*, --ring, --chart-1, --sidebar-primary*,
- * --sidebar-ring) live in the ACCENT blocks. They set disjoint
- * variables, so cascade order between them doesn't matter.
- *
- * `:root` carries the dark-mode + violet defaults so a visitor
- * renders correctly before JS runs; the boot script in
- * layout.tsx replays the saved mode + accent before first paint.
- *
- * The three `--primary-*` extras (hover / soft / soft-2) feed
- * hovered primary buttons and tinted-primary surfaces (sidebar
- * active pill, validation badges).
- *
- * Token shapes come straight from the design handoff at
- * project/Color Themes.html — change one, change the other.
- * ============================================================ */
-
-/* ---- MODE: neutral surfaces ---- */
 
 :root,
 html[data-mode="dark"] {
@@ -144,8 +110,6 @@ html[data-mode="light"] {
   --sidebar-accent-foreground: oklch(0.25 0.01 260);
   --sidebar-border: oklch(0.922 0.004 260);
 }
-
-/* ---- ACCENT: primary color ---- */
 
 :root,
 html[data-theme="violet"] {
@@ -226,5 +190,197 @@ html[data-theme="rose"] {
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ============================================================
+ * MEGORAH WORKSPACE VISUAL SYSTEM
+ * A separate visual layer so the product feels bespoke rather than
+ * like a stock CRM template. These rules are intentionally scoped to
+ * the authenticated workspace and preserve the existing component logic.
+ * ============================================================ */
+
+.brand-shell {
+  --brand-glass: color-mix(in oklab, var(--card) 76%, transparent);
+  --brand-glass-strong: color-mix(in oklab, var(--card-2) 88%, transparent);
+  --brand-line: color-mix(in oklab, var(--border) 78%, transparent);
+  --brand-accent: var(--primary);
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 78% 12%, color-mix(in oklab, var(--brand-accent) 12%, transparent), transparent 28rem),
+    radial-gradient(circle at 16% 84%, color-mix(in oklab, #16c7b7 7%, transparent), transparent 24rem),
+    var(--background);
+}
+
+.brand-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.34;
+  background-image: radial-gradient(color-mix(in oklab, var(--foreground) 14%, transparent) 0.7px, transparent 0.7px);
+  background-size: 18px 18px;
+  mask-image: linear-gradient(to bottom, black, transparent 88%);
+}
+
+.brand-main {
+  min-width: 0;
+  position: relative;
+}
+
+.brand-content {
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+  position: relative;
+}
+
+.brand-content::before {
+  content: "";
+  position: fixed;
+  inset: 4.5rem 0 auto 15rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--brand-accent) 45%, transparent), transparent);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.brand-page-in {
+  animation: brand-page-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.brand-shell header {
+  height: 4rem;
+  border-bottom-color: var(--brand-line);
+  background: color-mix(in oklab, var(--background) 74%, transparent);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: 0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent);
+}
+
+.brand-shell aside {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--sidebar) 91%, transparent), color-mix(in oklab, var(--background) 96%, transparent));
+  border-right-color: var(--brand-line);
+  box-shadow: 18px 0 50px -38px color-mix(in oklab, var(--brand-accent) 20%, transparent);
+}
+
+.brand-shell aside a {
+  transition: color 180ms ease, background-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+.brand-shell aside a:hover {
+  transform: translateX(2px);
+}
+
+.brand-shell aside a[class*="bg-primary"] {
+  box-shadow: inset 3px 0 0 var(--brand-accent), 0 8px 24px -20px var(--brand-accent);
+}
+
+.brand-shell .border-border {
+  border-color: var(--brand-line);
+}
+
+.brand-shell .bg-card,
+.brand-shell [class*="bg-card/"],
+.brand-shell .bg-card-2 {
+  background: var(--brand-glass);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+}
+
+.brand-shell .rounded-lg,
+.brand-shell .rounded-xl,
+.brand-shell .rounded-2xl {
+  transition: box-shadow 220ms ease, transform 220ms ease, border-color 220ms ease, background-color 220ms ease;
+}
+
+.brand-shell .shadow-sm,
+.brand-shell .shadow-md {
+  box-shadow: 0 14px 38px -30px color-mix(in oklab, var(--foreground) 42%, transparent);
+}
+
+.brand-shell button,
+.brand-shell a,
+.brand-shell input,
+.brand-shell textarea,
+.brand-shell select {
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.brand-shell button:not(:disabled):hover,
+.brand-shell [role="button"]:not([aria-disabled="true"]):hover {
+  transform: translateY(-1px);
+}
+
+.brand-shell button:not(:disabled):active,
+.brand-shell [role="button"]:not([aria-disabled="true"]):active {
+  transform: translateY(0) scale(0.985);
+}
+
+.brand-loading {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--background);
+  color: var(--muted-foreground);
+}
+
+.brand-loading p {
+  position: absolute;
+  margin-top: 7rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brand-loading-orb {
+  width: 12rem;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 35%, color-mix(in oklab, white 58%, var(--primary)), color-mix(in oklab, var(--primary) 12%, transparent) 55%, transparent 70%);
+  filter: blur(8px);
+  opacity: 0.7;
+  animation: brand-breathe 2.6s ease-in-out infinite;
+}
+
+.brand-loader {
+  position: absolute;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 999px;
+  border: 2px solid color-mix(in oklab, var(--primary) 24%, transparent);
+  border-top-color: var(--primary);
+  animation: brand-spin 850ms linear infinite;
+}
+
+@keyframes brand-page-enter {
+  from { opacity: 0; transform: translateY(10px) scale(0.995); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes brand-breathe {
+  0%, 100% { transform: scale(0.92); opacity: 0.5; }
+  50% { transform: scale(1.05); opacity: 0.88; }
+}
+
+@keyframes brand-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 1023px) {
+  .brand-content::before { inset-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-page-in,
+  .brand-loading-orb,
+  .brand-loader {
+    animation: none;
+  }
+  .brand-shell * {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
