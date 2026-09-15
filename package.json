@@ -13,8 +13,20 @@
   "bugs": {
     "url": "https://github.com/ArnasDon/wacrm/issues"
   },
-  "keywords": ["crm","whatsapp","whatsapp-business-api","nextjs","supabase","automation","broadcast","self-hosted","template"],
-  "engines": {"node": ">=20.0.0"},
+  "keywords": [
+    "crm",
+    "whatsapp",
+    "whatsapp-business-api",
+    "nextjs",
+    "supabase",
+    "automation",
+    "broadcast",
+    "self-hosted",
+    "template"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "packageManager": "npm@10.9.9",
   "scripts": {
     "dev": "next dev",
