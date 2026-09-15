@@ -1,9 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import {
-  checkRateLimit,
-  RATE_LIMITS,
-  type RateLimitOptions,
-} from "@/lib/rate-limit";
+import { checkRateLimit, type RateLimitOptions } from "@/lib/rate-limit";
 
 export function getRequestIp(request: Request) {
   const forwarded = request.headers.get("x-forwarded-for");
@@ -39,7 +35,10 @@ function fallbackLimit(
   return {
     allowed: result.success,
     unavailable: true,
-    retryAfterSeconds: Math.max(1, Math.ceil((result.retryAfterMs ?? result.reset - Date.now()) / 1000)),
+    retryAfterSeconds: Math.max(
+      1,
+      Math.ceil((result.retryAfterMs ?? result.reset - Date.now()) / 1000),
+    ),
     remaining: result.remaining,
   };
 }
