@@ -1,5 +1,6 @@
 import { createBrowserClient } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from './config'
 
 // Singleton instance — one client shared across the whole browser session.
 // Creating multiple clients causes auth-lock contention ("Lock was released
@@ -9,14 +10,7 @@ let browserClient: SupabaseClient | undefined
 export function createClient() {
   if (browserClient) return browserClient
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!url || !key) {
-    throw new Error('Supabase client configuration is missing')
-  }
-
-  browserClient = createBrowserClient(url, key)
+  browserClient = createBrowserClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
 
   return browserClient
 }
