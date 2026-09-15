@@ -33,7 +33,6 @@ function SignupPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [signedIn, setSignedIn] = useState(false);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,9 +68,10 @@ function SignupPageInner() {
     try {
       const supabase = createClient();
       const origin = window.location.origin;
-      const emailRedirectTo = inviteToken
-        ? `${origin}/join/${encodeURIComponent(inviteToken.slice(0, 256))}`
-        : `${origin}/login`;
+      const nextPath = inviteToken
+        ? `/join/${encodeURIComponent(inviteToken.slice(0, 256))}`
+        : "/dashboard";
+      const emailRedirectTo = `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
 
       const { data, error: signupError } = await supabase.auth.signUp({
         email: normalizedEmail,
@@ -85,15 +85,13 @@ function SignupPageInner() {
       if (signupError) throw signupError;
 
       if (data.session) {
-        setSignedIn(true);
-        window.location.href = inviteToken
-          ? `/join/${encodeURIComponent(inviteToken.slice(0, 256))}`
-          : "/dashboard";
+        window.location.href = nextPath;
         return;
       }
 
       setSuccess(true);
-    } catch {
+    } catch (signupError) {
+      console.error("[auth/signup] signup failed", signupError instanceof Error ? signupError.message : signupError);
       setError(GENERIC_SIGNUP_ERROR);
     } finally {
       setLoading(false);
@@ -128,8 +126,6 @@ function SignupPageInner() {
       </div>
     );
   }
-
-  if (signedIn) return null;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
