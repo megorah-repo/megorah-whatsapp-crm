@@ -7,15 +7,18 @@ export const runtime = 'nodejs'
 /**
  * Operational health endpoint.
  *
- * - DB check uses a lightweight authenticated Supabase query.
- * - Cache is reported as unavailable unless an explicit cache backend is
- *   configured; we never claim an in-memory/local cache is production-safe.
+ * - DB check uses a lightweight Supabase query.
+ * - Cache reports configuration state only unless a real cache adapter is
+ *   wired in; an environment variable alone is never treated as a ping.
  * - Detailed diagnostics are intentionally not exposed to callers.
  */
 export async function GET() {
   const startedAt = Date.now()
   let db: 'ok' | 'error' = 'error'
-  let cache: 'ok' | 'unconfigured' | 'error' = 'unconfigured'
+  const cache: 'configured' | 'unconfigured' =
+    process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL
+      ? 'configured'
+      : 'unconfigured'
 
   try {
     const supabase = await createClient()
@@ -25,14 +28,9 @@ export async function GET() {
     db = 'error'
   }
 
-  // The current application does not have a verified distributed cache
-  // adapter. Keep this explicit rather than reporting process-local state as
-  // healthy in a multi-instance deployment.
-  if (process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL) {
-    cache = 'ok'
-  }
-
-  const healthy = db === 'ok' && cache !== 'error'
+  // The current application has no verified distributed-cache adapter, so
+  // an in-memory cache must not be represented as a production health signal.
+  const healthy = db === 'ok'
   const response = NextResponse.json(
     {
       status: healthy ? 'ok' : 'degraded',
