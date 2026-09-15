@@ -1,28 +1,17 @@
 {
-  "name": "wacrm",
-  "version": "0.8.0",
+  "name": "megorah-nova-crm",
+  "version": "1.0.0",
   "private": true,
-  "description": "Self-hostable CRM template for WhatsApp built on Next.js and Supabase — shared inbox, contacts, sales pipelines, broadcasts, and no-code automations.",
+  "description": "Megorah's premium AI-powered WhatsApp customer workspace.",
   "license": "MIT",
-  "author": "Arnas Donauskas",
-  "homepage": "https://github.com/ArnasDon/wacrm",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ArnasDon/wacrm.git"
-  },
-  "bugs": {
-    "url": "https://github.com/ArnasDon/wacrm/issues"
-  },
+  "author": "Megorah",
   "keywords": [
     "crm",
     "whatsapp",
-    "whatsapp-business-api",
-    "nextjs",
-    "supabase",
+    "ai",
+    "customer-workspace",
     "automation",
-    "broadcast",
-    "self-hosted",
-    "template"
+    "sales"
   ],
   "engines": {
     "node": ">=20.0.0"

@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/lib/supabase/config'
 
 const protectedPaths = [
   '/dashboard',
@@ -17,36 +18,21 @@ function isProtectedPath(pathname: string) {
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  // Never allow missing deployment configuration to crash the routing layer.
-  // Public pages remain reachable, while protected pages fail closed to /login.
-  if (!supabaseUrl || !supabaseAnonKey) {
-    if (isProtectedPath(pathname)) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/login'
-      url.search = ''
-      return NextResponse.redirect(url)
-    }
-
-    if (pathname.startsWith('/api/whatsapp/') && !pathname.includes('/webhook')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    return NextResponse.next()
-  }
+  const supabaseUrl = SUPABASE_URL
+  const supabaseKey = SUPABASE_PUBLISHABLE_KEY
 
   let supabaseResponse = NextResponse.next({ request })
 
   try {
-    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    const supabase = createServerClient(supabaseUrl, supabaseKey, {
       cookies: {
         getAll() {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value, options }) => {
+            request.cookies.set(name, value)
+          })
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
@@ -66,7 +52,6 @@ export async function proxy(request: NextRequest) {
       return response
     }
 
-    // Auth pages - redirect to dashboard if already logged in.
     if (
       user &&
       (pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password')
@@ -84,7 +69,6 @@ export async function proxy(request: NextRequest) {
       return withRefreshedCookies(NextResponse.redirect(url))
     }
 
-    // Protected pages - redirect to login if not authenticated.
     if (!user && isProtectedPath(pathname)) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
@@ -92,7 +76,6 @@ export async function proxy(request: NextRequest) {
       return withRefreshedCookies(NextResponse.redirect(url))
     }
 
-    // API routes that need auth (not webhooks).
     if (!user && pathname.startsWith('/api/whatsapp/') && !pathname.includes('/webhook')) {
       return withRefreshedCookies(
         NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -101,8 +84,6 @@ export async function proxy(request: NextRequest) {
 
     return supabaseResponse
   } catch (error) {
-    // The routing boundary must never take the whole site down because of an
-    // unexpected auth/session exception. Fail closed for protected resources.
     console.error('[proxy] auth/session check failed', error)
 
     if (isProtectedPath(pathname)) {
