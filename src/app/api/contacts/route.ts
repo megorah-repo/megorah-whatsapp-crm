@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createPlatformAdminClient } from "@/lib/admin/platform-admin-client";
 import { readLimitedJson, sameOrigin, isSafeName } from "@/lib/security/input";
 
 export const dynamic = "force-dynamic";
@@ -40,9 +39,9 @@ export async function POST(request: Request) {
   if (name && (!isSafeName(name) || Buffer.byteLength(name, "utf8") > 120)) return errorResponse(400, "Invalid name");
   if (email.length > MAX_EMAIL || company.length > MAX_COMPANY) return errorResponse(400, "Contact field is too long");
 
-  // Resolve the authoritative account on the server; never trust a client-provided account id.
-  const admin = createPlatformAdminClient();
-  const { data: profile, error: profileError } = await admin
+  // Resolve the authoritative account through the authenticated server client.
+  // No service-role key is required for normal contact creation.
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("account_id, account_role")
     .eq("user_id", user.id)
@@ -59,13 +58,17 @@ export async function POST(request: Request) {
     return errorResponse(403, "You do not have permission to create contacts");
   }
 
-  const { data: existing } = await admin
+  const { data: existing, error: existingError } = await supabase
     .from("contacts")
     .select("id, name, phone")
     .eq("account_id", profile.account_id)
     .eq("phone", phone)
     .maybeSingle();
 
+  if (existingError) {
+    console.error("[contacts] duplicate lookup failed", existingError.message);
+    return errorResponse(500, "Unable to check contact");
+  }
   if (existing) {
     return NextResponse.json(
       { error: "A contact with this phone number already exists.", existingContact: existing },
@@ -73,7 +76,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: contact, error: insertError } = await admin
+  const { data: contact, error: insertError } = await supabase
     .from("contacts")
     .insert({
       user_id: user.id,
@@ -88,7 +91,12 @@ export async function POST(request: Request) {
 
   if (insertError) {
     if (insertError.code === "23505") return errorResponse(409, "A contact with this phone number already exists.");
-    console.error("[contacts] insert failed", { code: insertError.code, message: insertError.message });
+    console.error("[contacts] insert failed", {
+      code: insertError.code,
+      message: insertError.message,
+      details: insertError.details,
+      hint: insertError.hint,
+    });
     return errorResponse(500, "Unable to save contact");
   }
 
