@@ -35,6 +35,26 @@ jobs:
         run: npm ci
       - name: Dependency audit
         run: npm audit --audit-level=high
+      - name: Security version guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          const next = pkg.dependencies?.next;
+          const eslintNext = pkg.devDependencies?.['eslint-config-next'];
+          const allowed = '16.3.3';
+          if (next !== allowed || eslintNext !== allowed) {
+            console.error(`Security blocker: Next.js must be exactly ${allowed}; found next=${next}, eslint-config-next=${eslintNext}`);
+            process.exit(1);
+          }
+          if (lock.packages?.['']?.dependencies?.next !== allowed) {
+            console.error('Security blocker: package-lock.json does not match the required Next.js version.');
+            process.exit(1);
+          }
+          NODE
       - name: Secret scan
         shell: bash
         run: |
