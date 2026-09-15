@@ -4,6 +4,7 @@ import { getLocale, getMessages } from 'next-intl/server';
 import { Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import "./megorah-premium.css";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { ThemedToaster } from "@/components/themed-toaster";
 import {
