@@ -29,7 +29,10 @@ const SECURITY_HEADERS = [
 ] as const;
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // Next 16.3 + Vercel's adapter can fail when standalone output is enabled
+  // because .next/next-server.js.nft.json is no longer emitted there.
+  // Standalone remains enabled for non-Vercel self-hosted builds.
+  output: process.env.VERCEL ? undefined : "standalone",
   allowedDevOrigins: [
     "*.ngrok-free.app",
     "*.ngrok.app",
