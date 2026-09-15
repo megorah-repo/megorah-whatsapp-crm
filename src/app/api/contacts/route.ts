@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createPlatformAdminClient } from "@/lib/admin/platform-admin-client";
 import { readLimitedJson, sameOrigin, isSafeName } from "@/lib/security/input";
 
 export const dynamic = "force-dynamic";
@@ -15,8 +16,8 @@ function errorResponse(status: number, message: string) {
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return errorResponse(403, "Invalid request origin");
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
   if (!user) return errorResponse(401, "Not authenticated");
 
   let body: Record<string, unknown>;
@@ -39,9 +40,15 @@ export async function POST(request: Request) {
   if (name && (!isSafeName(name) || Buffer.byteLength(name, "utf8") > 120)) return errorResponse(400, "Invalid name");
   if (email.length > MAX_EMAIL || company.length > MAX_COMPANY) return errorResponse(400, "Contact field is too long");
 
-  // Resolve the authoritative account through the authenticated server client.
-  // No service-role key is required for normal contact creation.
-  const { data: profile, error: profileError } = await supabase
+  let admin;
+  try {
+    admin = createPlatformAdminClient();
+  } catch (error) {
+    console.error("[contacts] admin client unavailable", error instanceof Error ? error.message : error);
+    return errorResponse(500, "Contact database is not configured");
+  }
+
+  const { data: profile, error: profileError } = await admin
     .from("profiles")
     .select("account_id, account_role")
     .eq("user_id", user.id)
@@ -58,7 +65,7 @@ export async function POST(request: Request) {
     return errorResponse(403, "You do not have permission to create contacts");
   }
 
-  const { data: existing, error: existingError } = await supabase
+  const { data: existing, error: existingError } = await admin
     .from("contacts")
     .select("id, name, phone")
     .eq("account_id", profile.account_id)
@@ -76,7 +83,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: contact, error: insertError } = await supabase
+  const { data: contact, error: insertError } = await admin
     .from("contacts")
     .insert({
       user_id: user.id,
