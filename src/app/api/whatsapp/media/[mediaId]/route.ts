@@ -31,10 +31,6 @@ export async function GET(
       )
     }
 
-    // Resolve the caller's account_id — whatsapp_config is one-per-
-    // account post-multi-user, so a teammate fetching media for a
-    // conversation in the shared inbox needs the account's config,
-    // not their personal (non-existent) row.
     const { data: profile } = await supabase
       .from('profiles')
       .select('account_id')
@@ -48,7 +44,6 @@ export async function GET(
       )
     }
 
-    // Fetch and decrypt WhatsApp config
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
       .select('*')
@@ -63,11 +58,7 @@ export async function GET(
     }
 
     const accessToken = decrypt(config.access_token)
-
-    // Get the download URL from Meta
     const mediaInfo = await getMediaUrl({ mediaId, accessToken })
-
-    // Download the binary data
     const { buffer, contentType } = await downloadMedia({
       downloadUrl: mediaInfo.url,
       accessToken,
@@ -77,7 +68,9 @@ export async function GET(
       status: 200,
       headers: {
         'Content-Type': contentType || mediaInfo.mimeType || 'application/octet-stream',
-        'Cache-Control': 'public, max-age=86400',
+        'Cache-Control': 'private, no-store',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Disposition': 'inline',
       },
     })
   } catch (error) {
