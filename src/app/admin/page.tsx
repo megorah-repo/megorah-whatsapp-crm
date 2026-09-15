@@ -1,5 +1,5 @@
 import { requirePlatformAdmin } from "@/lib/admin-access";
-import { createClient } from "@/lib/supabase/server";
+import { createPlatformAdminClient } from "@/lib/admin/platform-admin-client";
 
 export const dynamic = "force-dynamic";
 
@@ -8,13 +8,13 @@ function money(value: number) {
 }
 
 function StatCard({ label, value, hint, tone = "default" }: { label: string; value: string; hint: string; tone?: "default" | "good" | "warn" | "danger" }) {
-  const toneClass = tone === "good" ? "border-emerald-200 bg-emerald-50" : tone === "warn" ? "border-amber-200 bg-amber-50" : tone === "danger" ? "border-red-200 bg-red-50" : "border-zinc-200 bg-white";
-  return <div className={`rounded-2xl border p-5 shadow-sm ${toneClass}`}><p className="text-sm text-zinc-500">{label}</p><p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950">{value}</p><p className="mt-1 text-xs text-zinc-500">{hint}</p></div>;
+  const toneClass = tone === "good" ? "border-emerald-200 bg-emerald-50" : tone === "warn" ? "border-amber-200 bg-amber-50" : tone === "danger" ? "border-red-200 bg-red-50" : "border-border bg-card";
+  return <div className={`rounded-2xl border p-5 shadow-sm ${toneClass}`}><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-3xl font-semibold tracking-tight">{value}</p><p className="mt-1 text-xs text-muted-foreground">{hint}</p></div>;
 }
 
 export default async function AdminPage() {
   await requirePlatformAdmin();
-  const supabase = await createClient();
+  const supabase = createPlatformAdminClient();
 
   const [profiles, accounts, subscriptions, onboarding, tickets, feedback, whatsapp] = await Promise.all([
     supabase.from("profiles").select("id, user_id, full_name, email, account_id, account_role, created_at").order("created_at", { ascending: false }),
@@ -56,11 +56,7 @@ export default async function AdminPage() {
     <main className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6 lg:px-10">
       <div className="mx-auto max-w-[1500px]">
         <header className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Megorah SaaS · Platform Control</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Admin Dashboard</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Clients, billing, onboarding, support, feedback and platform health — all in one view.</p>
-          </div>
+          <div><p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Megorah SaaS · Platform Control</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">Admin Dashboard</h1><p className="mt-2 text-sm text-muted-foreground">Clients, billing, onboarding, support, feedback and platform health — all in one view.</p></div>
           <a href="/dashboard" className="text-sm font-medium text-primary hover:underline">← Back to CRM</a>
         </header>
 
