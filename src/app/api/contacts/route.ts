@@ -14,26 +14,19 @@ function errorResponse(status: number, message: string) {
 }
 
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) {
-    return errorResponse(403, "Invalid request origin");
-  }
+  if (!sameOrigin(request)) return errorResponse(403, "Invalid request origin");
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return errorResponse(401, "Not authenticated");
 
-  let body: {
-    name?: unknown;
-    phone?: unknown;
-    email?: unknown;
-    company?: unknown;
-  };
-
+  let body: Record<string, unknown>;
   try {
-    body = await readLimitedJson(request);
+    const parsed = await readLimitedJson(request);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return errorResponse(400, "Invalid request body");
+    }
+    body = parsed;
   } catch {
     return errorResponse(400, "Invalid request body");
   }
@@ -43,19 +36,11 @@ export async function POST(request: Request) {
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const company = typeof body.company === "string" ? body.company.trim() : "";
 
-  if (!phone || phone.length > MAX_PHONE) {
-    return errorResponse(400, "A valid phone number is required");
-  }
-  if (name && (!isSafeName(name) || Buffer.byteLength(name, "utf8") > 120)) {
-    return errorResponse(400, "Invalid name");
-  }
-  if (email.length > MAX_EMAIL || company.length > MAX_COMPANY) {
-    return errorResponse(400, "Contact field is too long");
-  }
+  if (!phone || phone.length > MAX_PHONE) return errorResponse(400, "A valid phone number is required");
+  if (name && (!isSafeName(name) || Buffer.byteLength(name, "utf8") > 120)) return errorResponse(400, "Invalid name");
+  if (email.length > MAX_EMAIL || company.length > MAX_COMPANY) return errorResponse(400, "Contact field is too long");
 
-  // The browser can temporarily have accountId=null while AuthProvider is
-  // hydrating. Resolve the authoritative account from the signed-in user on
-  // the server instead of trusting a client-provided account id.
+  // Resolve the authoritative account on the server; never trust a client-provided account id.
   const admin = createPlatformAdminClient();
   const { data: profile, error: profileError } = await admin
     .from("profiles")
@@ -67,17 +52,13 @@ export async function POST(request: Request) {
     console.error("[contacts] profile lookup failed", profileError.message);
     return errorResponse(500, "Unable to resolve account");
   }
-
   if (!profile?.account_id || !profile.account_role) {
     return errorResponse(409, "Your account setup is incomplete. Refresh and try again.");
   }
-
-  // Prevent client-role confusion: viewers cannot create contacts.
   if (!["owner", "admin", "agent"].includes(profile.account_role)) {
     return errorResponse(403, "You do not have permission to create contacts");
   }
 
-  // Check the authoritative account-scoped duplicate before inserting.
   const { data: existing } = await admin
     .from("contacts")
     .select("id, name, phone")
@@ -106,13 +87,8 @@ export async function POST(request: Request) {
     .single();
 
   if (insertError) {
-    if (insertError.code === "23505") {
-      return errorResponse(409, "A contact with this phone number already exists.");
-    }
-    console.error("[contacts] insert failed", {
-      code: insertError.code,
-      message: insertError.message,
-    });
+    if (insertError.code === "23505") return errorResponse(409, "A contact with this phone number already exists.");
+    console.error("[contacts] insert failed", { code: insertError.code, message: insertError.message });
     return errorResponse(500, "Unable to save contact");
   }
 
