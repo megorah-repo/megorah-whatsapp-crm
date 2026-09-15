@@ -67,25 +67,20 @@ function SignupPageInner() {
     setLoading(true);
     try {
       const supabase = createClient();
-      const origin = window.location.origin;
-      const nextPath = inviteToken
-        ? `/join/${encodeURIComponent(inviteToken.slice(0, 256))}`
-        : "/dashboard";
-      const emailRedirectTo = `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
-
       const { data, error: signupError } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
         options: {
           data: { full_name: normalizedName },
-          emailRedirectTo,
         },
       });
 
       if (signupError) throw signupError;
 
       if (data.session) {
-        window.location.href = nextPath;
+        window.location.href = inviteToken
+          ? `/join/${encodeURIComponent(inviteToken.slice(0, 256))}`
+          : "/dashboard";
         return;
       }
 
