@@ -19,7 +19,9 @@ const protectedPaths = [
 ]
 
 function isProtectedPath(pathname: string) {
-  return protectedPaths.some((path) => pathname.startsWith(path))
+  return protectedPaths.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  )
 }
 
 export async function proxy(request: NextRequest) {
