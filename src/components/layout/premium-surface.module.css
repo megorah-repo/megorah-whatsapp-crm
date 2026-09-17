@@ -1,0 +1,292 @@
+.shell {
+  --premium-line: color-mix(in oklab, var(--border) 72%, transparent);
+  --premium-glass: color-mix(in oklab, var(--card) 70%, transparent);
+  --premium-glass-strong: color-mix(in oklab, var(--card-2) 84%, transparent);
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 82% 5%, color-mix(in oklab, var(--primary) 10%, transparent), transparent 28rem),
+    radial-gradient(circle at 18% 92%, color-mix(in oklab, #16c7b7 7%, transparent), transparent 25rem),
+    var(--background);
+}
+
+.shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    linear-gradient(120deg, color-mix(in oklab, white 5%, transparent), transparent 24%, transparent 72%, color-mix(in oklab, var(--primary) 4%, transparent)),
+    radial-gradient(circle at 50% 0%, color-mix(in oklab, white 7%, transparent), transparent 34rem);
+  mix-blend-mode: soft-light;
+}
+
+.shell :global(header) {
+  position: relative;
+  z-index: 20;
+  min-height: 4rem;
+  border-color: var(--premium-line);
+  background: color-mix(in oklab, var(--background) 68%, transparent);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  box-shadow:
+    0 1px 0 color-mix(in oklab, white 8%, transparent),
+    0 16px 40px -34px color-mix(in oklab, var(--foreground) 28%, transparent);
+}
+
+.shell :global(header)::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--primary) 28%, transparent), transparent);
+  pointer-events: none;
+}
+
+.shell :global(aside) {
+  position: relative;
+  z-index: 30;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--sidebar) 90%, transparent), color-mix(in oklab, var(--background) 94%, transparent)),
+    radial-gradient(circle at 35% 0%, color-mix(in oklab, var(--primary) 8%, transparent), transparent 18rem);
+  border-color: var(--premium-line);
+  backdrop-filter: blur(22px) saturate(135%);
+  -webkit-backdrop-filter: blur(22px) saturate(135%);
+  box-shadow: 20px 0 50px -42px color-mix(in oklab, var(--primary) 28%, transparent);
+}
+
+.shell :global(aside > div:first-child) {
+  position: relative;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--foreground) 2%, transparent), transparent);
+}
+
+.shell :global(aside > div:first-child a) {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease;
+}
+
+.shell :global(aside > div:first-child a:hover) {
+  transform: translateX(2px);
+}
+
+.shell :global(aside > div:first-child a > div:first-child) {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow:
+    0 8px 24px -14px color-mix(in oklab, var(--primary) 70%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 28%, transparent);
+}
+
+.shell :global(aside nav) {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 16%, transparent) transparent;
+}
+
+.shell :global(aside nav a) {
+  position: relative;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  transition:
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 200ms ease;
+}
+
+.shell :global(aside nav a:hover) {
+  transform: translateX(2px);
+  border-color: color-mix(in oklab, var(--foreground) 7%, transparent);
+  background: color-mix(in oklab, var(--foreground) 5%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, white 5%, transparent);
+}
+
+.shell :global(aside nav a[class*="bg-primary/10"]) {
+  border-color: color-mix(in oklab, var(--primary) 22%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--primary) 16%, transparent), color-mix(in oklab, var(--primary) 8%, transparent)),
+    color-mix(in oklab, var(--card) 76%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, white 5%, transparent),
+    0 12px 28px -24px color-mix(in oklab, var(--primary) 76%, transparent);
+}
+
+.shell :global(aside nav a[class*="bg-primary/10"])::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 18px -4px var(--primary);
+}
+
+.shell :global(aside .border-t),
+.shell :global(aside .border-b) {
+  border-color: var(--premium-line);
+}
+
+.shell :global(aside .rounded-lg) {
+  border-radius: 12px;
+}
+
+.shell :global(main) {
+  position: relative;
+  background: transparent;
+}
+
+.shell :global(main > .brand-page-in) {
+  min-height: 100%;
+}
+
+.shell :global([data-slot="card"]) {
+  border-color: var(--premium-line);
+  background: var(--premium-glass);
+  box-shadow:
+    0 18px 48px -38px color-mix(in oklab, var(--foreground) 32%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 6%, transparent);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+}
+
+.shell :global([data-slot="card"]:hover) {
+  border-color: color-mix(in oklab, var(--primary) 16%, var(--premium-line));
+}
+
+.shell :global(input),
+.shell :global(textarea),
+.shell :global(select) {
+  border-color: color-mix(in oklab, var(--border) 92%, transparent);
+  background: color-mix(in oklab, var(--background) 42%, var(--card) 58%);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, white 4%, transparent);
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.shell :global(input:focus),
+.shell :global(textarea:focus),
+.shell :global(select:focus) {
+  border-color: color-mix(in oklab, var(--primary) 48%, var(--border));
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, var(--primary) 10%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 7%, transparent);
+}
+
+.shell :global(button),
+.shell :global([role="button"]) {
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    opacity 180ms ease;
+}
+
+.shell :global(button:not(:disabled):hover),
+.shell :global([role="button"]:not([aria-disabled="true"]):hover) {
+  transform: translateY(-1px);
+}
+
+.shell :global(button:not(:disabled):active),
+.shell :global([role="button"]:not([aria-disabled="true"]):active) {
+  transform: translateY(0) scale(0.985);
+}
+
+.shell :global([data-slot="dialog-content"]),
+.shell :global([data-slot="popover-content"]),
+.shell :global([data-slot="dropdown-menu-content"]) {
+  border-color: var(--premium-line);
+  background: color-mix(in oklab, var(--card) 78%, transparent);
+  box-shadow:
+    0 30px 80px -42px color-mix(in oklab, black 55%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 8%, transparent);
+  backdrop-filter: blur(26px) saturate(150%);
+  -webkit-backdrop-filter: blur(26px) saturate(150%);
+}
+
+.shell :global(.inbox-premium) {
+  border: 1px solid var(--premium-line);
+  border-radius: 22px;
+  box-shadow:
+    0 26px 72px -46px color-mix(in oklab, var(--foreground) 34%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 6%, transparent);
+  background: color-mix(in oklab, var(--background) 88%, transparent);
+  isolation: isolate;
+}
+
+.shell :global(.inbox-banner-premium) {
+  background: color-mix(in oklab, #f59e0b 9%, var(--background));
+  border-color: color-mix(in oklab, #f59e0b 20%, var(--premium-line));
+}
+
+.shell :global(.inbox-pane) {
+  min-width: 0;
+  background: color-mix(in oklab, var(--card) 58%, transparent);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+}
+
+.shell :global(.inbox-pane-list) {
+  flex: 0 0 clamp(300px, 29vw, 380px);
+  border-right: 1px solid var(--premium-line);
+}
+
+.shell :global(.inbox-pane-thread) {
+  flex: 1 1 auto;
+  background:
+    radial-gradient(circle at 75% 6%, color-mix(in oklab, var(--primary) 7%, transparent), transparent 22rem),
+    color-mix(in oklab, var(--background) 48%, var(--card) 52%);
+}
+
+.shell :global(.inbox-pane-contact) {
+  flex: 0 0 clamp(260px, 22vw, 320px);
+  border-left: 1px solid var(--premium-line);
+}
+
+.shell :global(.inbox-pane-list > *),
+.shell :global(.inbox-pane-thread > *),
+.shell :global(.inbox-pane-contact > *) {
+  min-width: 0;
+}
+
+@media (max-width: 1023px) {
+  .shell :global(main) {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .shell :global(.inbox-premium) {
+    border-radius: 18px;
+  }
+
+  .shell :global(.inbox-pane-list) {
+    flex-basis: 100%;
+    border-right: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell :global(*),
+  .shell :global(*::before),
+  .shell :global(*::after) {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+:global(html[data-mode="dark"]) .shell {
+  --premium-line: color-mix(in oklab, white 10%, transparent);
+  --premium-glass: color-mix(in oklab, var(--card) 66%, transparent);
+  --premium-glass-strong: color-mix(in oklab, var(--card-2) 78%, transparent);
+}
+
+:global(html[data-mode="light"]) .shell {
+  --premium-line: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --premium-glass: color-mix(in oklab, white 80%, transparent);
+  --premium-glass-strong: color-mix(in oklab, white 92%, transparent);
+}
