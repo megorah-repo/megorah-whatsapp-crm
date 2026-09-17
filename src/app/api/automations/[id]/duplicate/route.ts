@@ -24,16 +24,17 @@ export async function POST(
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const admin = supabaseAdmin()
-  const { data: original, error: origErr } = await admin
+  // Resolve the source through account-scoped RLS. Shared-account agents
+  // must be able to duplicate automations that another member created.
+  const { data: original, error: origErr } = await supabase
     .from('automations')
     .select('*')
     .eq('id', id)
-    .eq('user_id', user.id)
     .maybeSingle()
   if (origErr) return NextResponse.json({ error: origErr.message }, { status: 500 })
   if (!original) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  const admin = supabaseAdmin()
   const { data: copy, error: copyErr } = await admin
     .from('automations')
     .insert({
@@ -53,11 +54,16 @@ export async function POST(
     return NextResponse.json({ error: copyErr?.message ?? 'copy failed' }, { status: 500 })
   }
 
-  const { data: steps } = await admin
+  const { data: steps, error: stepsErr } = await admin
     .from('automation_steps')
     .select('id, parent_step_id, branch, step_type, step_config, position')
     .eq('automation_id', id)
     .order('position', { ascending: true })
+
+  if (stepsErr) {
+    await admin.from('automations').delete().eq('id', copy.id)
+    return NextResponse.json({ error: stepsErr.message }, { status: 500 })
+  }
 
   if (steps && steps.length > 0) {
     // Re-map parent_step_id: build old→new id map first so the second
@@ -79,7 +85,10 @@ export async function POST(
       position: row.position,
     }))
     const { error: insErr } = await admin.from('automation_steps').insert(rows)
-    if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
+    if (insErr) {
+      await admin.from('automations').delete().eq('id', copy.id)
+      return NextResponse.json({ error: insErr.message }, { status: 500 })
+    }
   }
 
   return NextResponse.json({ automation: copy }, { status: 201 })
