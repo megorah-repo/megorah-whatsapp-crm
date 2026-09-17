@@ -45,7 +45,8 @@ export default function TemplateLibraryPage() {
   const mediaInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (authLoading || !account?.id) return
+    const accountId = account?.id
+    if (authLoading || !accountId) return
     let cancelled = false
     async function load() {
       setLoading(true)
@@ -59,7 +60,7 @@ export default function TemplateLibraryPage() {
         supabase
           .from('message_templates')
           .select('id,catalog_template_id,status,meta_template_id,catalog_version,brand_config')
-          .eq('account_id', account.id)
+          .eq('account_id', accountId)
           .not('catalog_template_id', 'is', null),
       ])
 
