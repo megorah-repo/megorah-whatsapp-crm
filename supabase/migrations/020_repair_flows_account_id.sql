@@ -12,6 +12,22 @@
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Migration 017 normally creates this enum. Some production databases
+-- have the account tables/columns but missed the enum creation, so make
+-- the repair self-healing before any function signatures reference it.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE t.typname = 'account_role_enum'
+      AND n.nspname = 'public'
+  ) THEN
+    CREATE TYPE public.account_role_enum AS ENUM ('owner', 'admin', 'agent', 'viewer');
+  END IF;
+END $$;
+
 DO $$
 BEGIN
   IF to_regclass('public.accounts') IS NULL THEN
@@ -32,7 +48,7 @@ END $$;
 -- Keep the helper available for the repaired RLS policies.
 CREATE OR REPLACE FUNCTION public.is_account_member(
   target_account_id UUID,
-  min_role account_role_enum DEFAULT 'viewer'
+  min_role public.account_role_enum DEFAULT 'viewer'
 ) RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
@@ -60,8 +76,8 @@ AS $$
   );
 $$;
 
-ALTER FUNCTION public.is_account_member(UUID, account_role_enum) OWNER TO postgres;
-GRANT EXECUTE ON FUNCTION public.is_account_member(UUID, account_role_enum) TO authenticated, service_role;
+ALTER FUNCTION public.is_account_member(UUID, public.account_role_enum) OWNER TO postgres;
+GRANT EXECUTE ON FUNCTION public.is_account_member(UUID, public.account_role_enum) TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -315,7 +331,8 @@ CREATE POLICY flow_runs_select ON public.flow_runs
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.flow_run_events (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  flow_run_id UUID NOT NULL REFERENCES public.flow_runs(id) ON DELETE CASCADE,
+  flow_run_id UUID NOT NULL
+    REFERENCES public.flow_runs(id) ON DELETE CASCADE,
   event_type TEXT NOT NULL CHECK (event_type IN (
     'started',
     'node_entered',
