@@ -36,13 +36,17 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const isInbox = pathname === "/inbox";
 
   return (
-    <div className={`brand-shell ${styles.shell} ${workspaceStyles.workspace} flex h-screen overflow-hidden bg-background`}>
+    <div
+      className={`brand-shell ${styles.shell} ${workspaceStyles.workspace} flex h-screen min-w-0 w-full max-w-full overflow-hidden bg-background`}
+    >
       <PresenceHeartbeat />
       <Sidebar open={sidebarOpen} onClose={closeSidebar} />
-      <div className="brand-main flex flex-1 flex-col overflow-hidden">
+      <div className="brand-main flex min-w-0 w-0 flex-1 flex-col overflow-hidden">
         <Header onOpenSidebar={() => setSidebarOpen(true)} />
-        <main className={`brand-content flex-1 overflow-y-auto p-4 sm:p-6${isInbox ? ` ${inboxStyles.page}` : ""}`}>
-          <div className="brand-page-in">{children}</div>
+        <main
+          className={`brand-content min-w-0 w-full max-w-full flex-1 overflow-x-auto overflow-y-auto overscroll-x-contain p-3 sm:p-4 md:p-6${isInbox ? ` ${inboxStyles.page}` : ""}`}
+        >
+          <div className="brand-page-in min-w-0 w-full max-w-full">{children}</div>
         </main>
       </div>
     </div>
