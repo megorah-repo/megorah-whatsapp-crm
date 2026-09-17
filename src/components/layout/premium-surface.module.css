@@ -46,6 +46,15 @@
   pointer-events: none;
 }
 
+/* The automation builder is intentionally a viewport-level editor. The
+   dashboard header has z-index:20, so without its own layer the editor's
+   top-right Save control can be covered by the profile/avatar area. Keep
+   the mobile sidebar above it (z-index:30) while the editor stays above
+   the shared header. */
+.shell :global(main > .brand-page-in > .fixed.inset-0.flex.flex-col.bg-background) {
+  z-index: 25;
+}
+
 /* Keep desktop chrome styling without overriding the responsive sidebar's
    `fixed` mobile drawer. The old unconditional `position: relative` here
    turned the mobile sidebar into an in-flow 16rem column, which pushed the
