@@ -41,6 +41,22 @@ const ROTATED = {
   options: { path: "/", httpOnly: true },
 };
 
+const PROTECTED_ROUTES = [
+  "/dashboard",
+  "/inbox",
+  "/notifications",
+  "/contacts",
+  "/pipelines",
+  "/broadcasts",
+  "/automations",
+  "/flows",
+  "/agents",
+  "/calendar",
+  "/email-marketing",
+  "/settings",
+  "/templates",
+] as const;
+
 describe("proxy — refreshed auth cookies survive redirects", () => {
   it("carries the rotated token when redirecting a signed-in user off /login", async () => {
     mockUser = { id: "user-1" };
@@ -63,27 +79,27 @@ describe("proxy — refreshed auth cookies survive redirects", () => {
   it("protects every authenticated dashboard module from unauthenticated access", async () => {
     mockUser = null;
 
-    const protectedRoutes = [
-      "/dashboard",
-      "/inbox",
-      "/notifications",
-      "/contacts",
-      "/pipelines",
-      "/broadcasts",
-      "/automations",
-      "/flows",
-      "/agents",
-      "/calendar",
-      "/email-marketing",
-      "/settings",
-      "/templates",
-    ];
-
-    for (const path of protectedRoutes) {
+    for (const path of PROTECTED_ROUTES) {
       const res = await proxy(new NextRequest(`https://app.test${path}`));
       expect(res.status, path).toBe(307);
       expect(res.headers.get("location"), path).toContain("/login");
     }
+  });
+
+  it("protects nested routes but not similarly-prefixed public paths", async () => {
+    mockUser = null;
+
+    const nested = await proxy(
+      new NextRequest("https://app.test/email-marketing/campaigns/123"),
+    );
+    expect(nested.status).toBe(307);
+    expect(nested.headers.get("location")).toContain("/login");
+
+    const prefixed = await proxy(
+      new NextRequest("https://app.test/email-marketing-old"),
+    );
+    expect(prefixed.status).toBe(200);
+    expect(prefixed.headers.get("location")).toBeNull();
   });
 
   it("redirects a signed-in user with an invite token to /join/<token>", async () => {
