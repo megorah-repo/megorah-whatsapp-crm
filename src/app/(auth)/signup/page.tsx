@@ -157,8 +157,11 @@ function SignupPageInner() {
               <Label htmlFor="fullName" className="text-muted-foreground">Full name</Label>
               <Input
                 id="fullName"
+                name="accountName"
                 type="text"
-                autoComplete="name"
+                autoComplete="off"
+                autoCapitalize="words"
+                spellCheck={false}
                 maxLength={MAX_NAME_LENGTH}
                 placeholder="Enter name"
                 value={fullName}
@@ -228,7 +231,6 @@ function SignupPageInner() {
             </Link>
           </p>
         </CardContent>
-      </Card>
-    </div>
+      </div>
   );
 }
