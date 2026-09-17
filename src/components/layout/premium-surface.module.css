@@ -46,8 +46,11 @@
   pointer-events: none;
 }
 
+/* Keep desktop chrome styling without overriding the responsive sidebar's
+   `fixed` mobile drawer. The old unconditional `position: relative` here
+   turned the mobile sidebar into an in-flow 16rem column, which pushed the
+   entire workspace off the right edge of narrow screens. */
 .shell :global(aside) {
-  position: relative;
   z-index: 30;
   background:
     linear-gradient(180deg, color-mix(in oklab, var(--sidebar) 90%, transparent), color-mix(in oklab, var(--background) 94%, transparent)),
@@ -56,6 +59,14 @@
   backdrop-filter: blur(22px) saturate(135%);
   -webkit-backdrop-filter: blur(22px) saturate(135%);
   box-shadow: 20px 0 50px -42px color-mix(in oklab, var(--primary) 28%, transparent);
+}
+
+/* Desktop keeps the existing premium surface positioning; mobile lets the
+   Sidebar component's Tailwind `fixed` positioning control the drawer. */
+@media (min-width: 1024px) {
+  .shell :global(aside) {
+    position: relative;
+  }
 }
 
 .shell :global(aside > div:first-child) {
