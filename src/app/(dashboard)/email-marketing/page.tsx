@@ -1,15 +1,54 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Mail, Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+const DRAFT_KEY = "megorah.emailMarketing.draft";
+
+interface Draft {
+  campaignName: string;
+  audience: string;
+  subject: string;
+  message: string;
+}
+
+const EMPTY_DRAFT: Draft = {
+  campaignName: "",
+  audience: "All contacts",
+  subject: "",
+  message: "",
+};
+
 export default function EmailMarketingPage() {
+  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [saved, setSaved] = useState(false);
 
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(DRAFT_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as Partial<Draft>;
+        setDraft({ ...EMPTY_DRAFT, ...parsed });
+      }
+    } catch {
+      // Keep the composer usable if browser storage is unavailable/corrupt.
+    }
+  }, []);
+
+  function updateDraft<K extends keyof Draft>(key: K, value: Draft[K]) {
+    setDraft((current) => ({ ...current, [key]: value }));
+    setSaved(false);
+  }
+
   function saveDraft() {
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 1800);
+    try {
+      window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 1800);
+    } catch {
+      setSaved(false);
+    }
   }
 
   return (
@@ -22,8 +61,7 @@ export default function EmailMarketingPage() {
           </h1>
         </div>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Create simple email campaigns and follow-ups from the same CRM where
-          you manage your WhatsApp leads.
+          Draft email campaigns alongside your WhatsApp CRM data. Drafts are saved on this browser until a sending provider is connected.
         </p>
       </div>
 
@@ -43,13 +81,19 @@ export default function EmailMarketingPage() {
             <label className="space-y-2">
               <span className="text-sm font-medium text-foreground">Campaign name</span>
               <input
+                value={draft.campaignName}
+                onChange={(e) => updateDraft("campaignName", e.target.value)}
                 placeholder="September follow-up"
                 className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
               />
             </label>
             <label className="space-y-2">
               <span className="text-sm font-medium text-foreground">Audience</span>
-              <select className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary">
+              <select
+                value={draft.audience}
+                onChange={(e) => updateDraft("audience", e.target.value)}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary"
+              >
                 <option>All contacts</option>
                 <option>Leads</option>
                 <option>Customers</option>
@@ -61,6 +105,8 @@ export default function EmailMarketingPage() {
           <label className="mt-4 block space-y-2">
             <span className="text-sm font-medium text-foreground">Subject</span>
             <input
+              value={draft.subject}
+              onChange={(e) => updateDraft("subject", e.target.value)}
               placeholder="A quick follow-up from Megorah CRM"
               className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
             />
@@ -70,6 +116,8 @@ export default function EmailMarketingPage() {
             <span className="text-sm font-medium text-foreground">Message</span>
             <textarea
               rows={8}
+              value={draft.message}
+              onChange={(e) => updateDraft("message", e.target.value)}
               placeholder="Write your email here..."
               className="w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
             />
@@ -80,7 +128,12 @@ export default function EmailMarketingPage() {
               {saved ? <Check className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
               {saved ? "Draft saved" : "Save draft"}
             </Button>
-            <Button type="button" variant="outline">
+            <Button
+              type="button"
+              variant="outline"
+              disabled
+              title="Email sending provider integration is not connected yet"
+            >
               Connect sending provider
             </Button>
           </div>
@@ -91,10 +144,10 @@ export default function EmailMarketingPage() {
             <h2 className="font-semibold text-foreground">What this gives you</h2>
             <div className="mt-4 space-y-3">
               {[
-                "Campaigns to CRM contacts",
-                "Lead follow-up sequences",
-                "Email + WhatsApp journeys",
-                "Personalized messages with contact data",
+                "Campaign drafts beside your CRM contacts",
+                "Lead follow-up audience presets",
+                "Email + WhatsApp journey planning",
+                "Saved campaign copy for later sending",
               ].map((item) => (
                 <div key={item} className="flex gap-2 text-sm text-muted-foreground">
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -107,9 +160,7 @@ export default function EmailMarketingPage() {
           <div className="rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-5">
             <p className="text-sm font-semibold text-foreground">Sending setup</p>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">
-              The CRM UI is ready for campaigns. Actual delivery requires a
-              connected email provider such as Resend, Amazon SES, SMTP, or
-              another transactional/marketing sender.
+              Drafting is available now. Actual delivery requires a connected provider such as Resend, Amazon SES, SMTP, or another supported sender.
             </p>
           </div>
         </aside>
