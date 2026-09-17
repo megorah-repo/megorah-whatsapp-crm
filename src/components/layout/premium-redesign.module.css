@@ -1,0 +1,116 @@
+.workspace {
+  --premium-shadow: 0 24px 70px -46px color-mix(in oklab, var(--foreground) 38%, transparent);
+}
+
+.workspace :global(.page-heading) {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0 0.75rem;
+}
+
+.workspace :global(.page-heading h1) {
+  letter-spacing: -0.035em;
+}
+
+.workspace :global(.page-subtitle) {
+  max-width: 52rem;
+  margin-top: 0.4rem;
+  color: var(--muted-foreground);
+}
+
+.workspace :global(.dashboard-grid) {
+  gap: 1rem;
+}
+
+.workspace :global(.metric-card) {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--border) 68%, transparent);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in oklab, var(--primary) 9%, transparent), transparent 9rem),
+    color-mix(in oklab, var(--card) 78%, transparent);
+  box-shadow: var(--premium-shadow), inset 0 1px 0 color-mix(in oklab, white 8%, transparent);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  transition: transform 240ms cubic-bezier(.22,1,.36,1), border-color 180ms ease, box-shadow 240ms ease;
+}
+
+.workspace :global(.metric-card)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(120deg, color-mix(in oklab, white 6%, transparent), transparent 30%, transparent 70%, color-mix(in oklab, var(--primary) 5%, transparent));
+}
+
+.workspace :global(.metric-card:hover) {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--primary) 22%, var(--border));
+  box-shadow: 0 28px 72px -46px color-mix(in oklab, var(--primary) 45%, transparent), inset 0 1px 0 color-mix(in oklab, white 10%, transparent);
+}
+
+.workspace :global(.metric-icon) {
+  border: 1px solid color-mix(in oklab, var(--primary) 18%, transparent);
+  background: linear-gradient(145deg, color-mix(in oklab, var(--primary) 16%, transparent), color-mix(in oklab, var(--card-2) 82%, transparent));
+  box-shadow: inset 0 1px 0 color-mix(in oklab, white 11%, transparent), 0 10px 24px -18px var(--primary);
+}
+
+.workspace :global(.premium-panel) {
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  border-radius: 22px;
+  background: color-mix(in oklab, var(--card) 72%, transparent);
+  box-shadow: var(--premium-shadow), inset 0 1px 0 color-mix(in oklab, white 7%, transparent);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+}
+
+.workspace :global(.premium-panel-header) {
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 58%, transparent);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--foreground) 2%, transparent), transparent);
+}
+
+.workspace :global(.quick-action) {
+  border: 1px solid color-mix(in oklab, var(--border) 68%, transparent);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--background) 38%, var(--card) 62%);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, white 6%, transparent);
+  transition: transform 200ms cubic-bezier(.22,1,.36,1), border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.workspace :global(.quick-action:hover) {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--primary) 26%, var(--border));
+  background: color-mix(in oklab, var(--primary) 6%, var(--card));
+  box-shadow: 0 16px 34px -28px var(--primary), inset 0 1px 0 color-mix(in oklab, white 8%, transparent);
+}
+
+.workspace :global(.workspace-btn) {
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 color-mix(in oklab, white 12%, transparent), 0 10px 22px -18px var(--primary);
+}
+
+.workspace :global(.data-toolbar) {
+  border: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--card) 65%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+@media (max-width: 1023px) {
+  .workspace :global(.page-heading) {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace :global(*),
+  .workspace :global(*::before),
+  .workspace :global(*::after) {
+    transition-duration: 0.01ms !important;
+  }
+}
