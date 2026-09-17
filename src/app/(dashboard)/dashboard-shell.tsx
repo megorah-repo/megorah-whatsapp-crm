@@ -1,16 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { AccountAccessAlert } from "@/components/layout/account-access-alert";
 import { PresenceHeartbeat } from "@/components/presence/presence-heartbeat";
+import styles from "@/components/layout/premium-surface.module.css";
+import inboxStyles from "@/components/layout/inbox-premium.module.css";
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
@@ -30,13 +33,15 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 
   if (!user) return null;
 
+  const isInbox = pathname === "/inbox";
+
   return (
-    <div className="brand-shell flex h-screen overflow-hidden bg-background">
+    <div className={`brand-shell ${styles.shell} flex h-screen overflow-hidden bg-background`}>
       <PresenceHeartbeat />
       <Sidebar open={sidebarOpen} onClose={closeSidebar} />
       <div className="brand-main flex flex-1 flex-col overflow-hidden">
         <Header onOpenSidebar={() => setSidebarOpen(true)} />
-        <main className="brand-content flex-1 overflow-y-auto p-4 sm:p-6">
+        <main className={`brand-content flex-1 overflow-y-auto p-4 sm:p-6${isInbox ? ` ${inboxStyles.page}` : ""}`}>
           <AccountAccessAlert />
           <div className="brand-page-in">{children}</div>
         </main>
