@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
-import { AccountAccessAlert } from "@/components/layout/account-access-alert";
 import { PresenceHeartbeat } from "@/components/presence/presence-heartbeat";
 import styles from "@/components/layout/premium-surface.module.css";
 import workspaceStyles from "@/components/layout/premium-redesign.module.css";
@@ -43,7 +42,6 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       <div className="brand-main flex flex-1 flex-col overflow-hidden">
         <Header onOpenSidebar={() => setSidebarOpen(true)} />
         <main className={`brand-content flex-1 overflow-y-auto p-4 sm:p-6${isInbox ? ` ${inboxStyles.page}` : ""}`}>
-          <AccountAccessAlert />
           <div className="brand-page-in">{children}</div>
         </main>
       </div>
