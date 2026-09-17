@@ -1,19 +1,58 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarDays, Check, Copy, ExternalLink, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+const STORAGE_KEY = "megorah.calendar.bookingLink";
+
+function isValidBookingUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export default function CalendarPage() {
   const [bookingLink, setBookingLink] = useState("");
+  const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  async function copyLink() {
-    if (!bookingLink) return;
-    await navigator.clipboard.writeText(bookingLink);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1500);
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEY);
+      if (stored) setBookingLink(stored);
+    } catch {
+      // Storage can be disabled by the browser; the page remains usable.
+    }
+  }, []);
+
+  function saveLink() {
+    if (!isValidBookingUrl(bookingLink.trim())) return;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, bookingLink.trim());
+      setBookingLink(bookingLink.trim());
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 1800);
+    } catch {
+      setSaved(false);
+    }
   }
+
+  async function copyLink() {
+    if (!isValidBookingUrl(bookingLink.trim())) return;
+    try {
+      await navigator.clipboard.writeText(bookingLink.trim());
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  const validLink = isValidBookingUrl(bookingLink.trim());
 
   return (
     <div className="space-y-6">
@@ -25,8 +64,7 @@ export default function CalendarPage() {
           </h1>
         </div>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Put a booking link directly inside your CRM so customers can book a
-          meeting from WhatsApp, email, or your follow-up flows.
+          Keep one validated booking link in your CRM workspace so customers can book a meeting from WhatsApp, email, or follow-up flows.
         </p>
       </div>
 
@@ -39,8 +77,7 @@ export default function CalendarPage() {
             <div>
               <h2 className="font-semibold text-foreground">Add your booking link</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Paste your Google Calendar appointment page, Cal.com, Calendly,
-                or any booking URL.
+                Paste your Google Calendar appointment page, Cal.com, Calendly, or any HTTPS/HTTP booking URL.
               </p>
             </div>
           </div>
@@ -52,26 +89,44 @@ export default function CalendarPage() {
             <input
               id="booking-link"
               value={bookingLink}
-              onChange={(e) => setBookingLink(e.target.value)}
+              onChange={(e) => {
+                setBookingLink(e.target.value);
+                setSaved(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveLink();
+              }}
               placeholder="https://cal.com/your-name/demo"
               className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none ring-offset-background placeholder:text-muted-foreground focus:border-primary"
             />
+            {bookingLink && !validLink && (
+              <p className="text-xs text-destructive">
+                Enter a valid booking URL beginning with http:// or https://
+              </p>
+            )}
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button type="button" onClick={copyLink} disabled={!bookingLink}>
+            <Button type="button" onClick={saveLink} disabled={!validLink}>
+              {saved ? <Check className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+              {saved ? "Saved" : "Save booking link"}
+            </Button>
+            <Button type="button" variant="outline" onClick={copyLink} disabled={!validLink}>
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               {copied ? "Copied" : "Copy booking link"}
             </Button>
             <Button
               type="button"
               variant="outline"
-              disabled={!bookingLink}
-              onClick={() => window.open(bookingLink, "_blank", "noopener,noreferrer")}
+              disabled={!validLink}
+              onClick={() => window.open(bookingLink.trim(), "_blank", "noopener,noreferrer")}
             >
               <ExternalLink className="h-4 w-4" /> Open
             </Button>
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            This keeps the link on this browser/device. The external calendar provider still controls slots, availability, and bookings.
+          </p>
         </section>
 
         <section className="rounded-2xl border border-border bg-card p-6">
@@ -89,9 +144,7 @@ export default function CalendarPage() {
             ))}
           </div>
           <div className="mt-5 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-4 text-xs leading-5 text-muted-foreground">
-            Booking providers still control the actual calendar and appointment
-            slot. This page gives the CRM one direct place to store and use the
-            booking URL.
+            This page stores and validates the booking URL for quick reuse. Actual calendar availability and appointment creation remain with the connected booking provider.
           </div>
         </section>
       </div>
