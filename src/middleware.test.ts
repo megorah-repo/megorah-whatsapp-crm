@@ -60,6 +60,32 @@ describe("proxy — refreshed auth cookies survive redirects", () => {
     expect(res.cookies.get(ROTATED.name)?.value).toBe("cleared");
   });
 
+  it("protects every authenticated dashboard module from unauthenticated access", async () => {
+    mockUser = null;
+
+    const protectedRoutes = [
+      "/dashboard",
+      "/inbox",
+      "/notifications",
+      "/contacts",
+      "/pipelines",
+      "/broadcasts",
+      "/automations",
+      "/flows",
+      "/agents",
+      "/calendar",
+      "/email-marketing",
+      "/settings",
+      "/templates",
+    ];
+
+    for (const path of protectedRoutes) {
+      const res = await proxy(new NextRequest(`https://app.test${path}`));
+      expect(res.status, path).toBe(307);
+      expect(res.headers.get("location"), path).toContain("/login");
+    }
+  });
+
   it("redirects a signed-in user with an invite token to /join/<token>", async () => {
     mockUser = { id: "user-1" };
     refreshedCookies = [ROTATED];
