@@ -1,0 +1,55 @@
+.page > :global(.brand-page-in) > div:first-child {
+  min-height: 100%;
+  border: 1px solid color-mix(in oklab, var(--border) 78%, transparent);
+  border-radius: 22px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 76% 8%, color-mix(in oklab, var(--primary) 8%, transparent), transparent 24rem),
+    color-mix(in oklab, var(--background) 82%, transparent);
+  box-shadow:
+    0 30px 80px -52px color-mix(in oklab, var(--foreground) 34%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 6%, transparent);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+}
+
+.page > :global(.brand-page-in) > div:first-child > div:nth-child(2) > div:first-child {
+  flex: 0 0 clamp(300px, 29vw, 380px);
+  border-right: 1px solid color-mix(in oklab, var(--border) 78%, transparent);
+  background: color-mix(in oklab, var(--card) 64%, transparent);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+}
+
+.page > :global(.brand-page-in) > div:first-child > div:nth-child(2) > div:nth-child(2) {
+  background:
+    radial-gradient(circle at 75% 6%, color-mix(in oklab, var(--primary) 7%, transparent), transparent 22rem),
+    color-mix(in oklab, var(--background) 48%, var(--card) 52%);
+}
+
+.page > :global(.brand-page-in) > div:first-child > div:nth-child(2) > div:last-child {
+  flex: 0 0 clamp(260px, 22vw, 320px);
+  border-left: 1px solid color-mix(in oklab, var(--border) 78%, transparent);
+  background: color-mix(in oklab, var(--card) 58%, transparent);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+}
+
+@media (max-width: 1023px) {
+  .page > :global(.brand-page-in) > div:first-child {
+    border-radius: 18px;
+  }
+
+  .page > :global(.brand-page-in) > div:first-child > div:nth-child(2) > div:first-child {
+    flex-basis: 100%;
+    border-right: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page > :global(.brand-page-in) > div:first-child,
+  .page > :global(.brand-page-in) > div:first-child * {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
