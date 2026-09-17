@@ -28,15 +28,6 @@ function getServiceRoleKey() {
   return process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || null;
 }
 
-function isMissingBucketError(message: string) {
-  const normalized = message.toLowerCase();
-  return (
-    normalized.includes("bucket not found") ||
-    normalized.includes("not found") && normalized.includes("bucket") ||
-    normalized.includes("the resource was not found")
-  );
-}
-
 async function buildAvatarDataUrl(file: File) {
   const bytes = Buffer.from(await file.arrayBuffer());
   return `data:${file.type};base64,${bytes.toString("base64")}`;
@@ -106,61 +97,61 @@ export async function POST(request: Request) {
         "png";
       const storagePath = `${user.id}/avatar-${crypto.randomUUID()}.${extension}`;
       const buffer = Buffer.from(await avatar.arrayBuffer());
-      const serviceRoleKey = getServiceRoleKey();
 
       let uploadSucceeded = false;
+      const serviceRoleKey = getServiceRoleKey();
 
       if (serviceRoleKey) {
-        const admin = createAdminClient(SUPABASE_URL, serviceRoleKey, {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false,
-          },
-        });
-
-        // The avatars migration may not have been applied to the hosted
-        // project yet. Make the bucket available at runtime when the service
-        // role can manage Storage; otherwise the data-URL fallback below
-        // still lets the profile save successfully.
-        const { data: buckets } = await admin.storage.listBuckets();
-        const hasAvatarsBucket = buckets?.some((bucket) => bucket.id === "avatars");
-
-        if (!hasAvatarsBucket) {
-          await admin.storage.createBucket("avatars", {
-            public: true,
-            fileSizeLimit: MAX_AVATAR_BYTES,
-            allowedMimeTypes: Array.from(ALLOWED_MIME),
-          });
-        }
-
-        const { error: uploadError } = await admin.storage
-          .from("avatars")
-          .upload(storagePath, buffer, {
-            cacheControl: "3600",
-            upsert: false,
-            contentType: avatar.type,
+        try {
+          const admin = createAdminClient(SUPABASE_URL, serviceRoleKey, {
+            auth: {
+              autoRefreshToken: false,
+              persistSession: false,
+            },
           });
 
-        if (!uploadError) {
-          const {
-            data: { publicUrl },
-          } = admin.storage.from("avatars").getPublicUrl(storagePath);
-          nextAvatarUrl = `${publicUrl}?v=${Date.now()}`;
-          uploadSucceeded = true;
-        } else if (!isMissingBucketError(uploadError.message)) {
-          return jsonError(
-            `Profile photo upload failed: ${uploadError.message}`,
-            500,
-          );
+          const { data: buckets, error: bucketListError } =
+            await admin.storage.listBuckets();
+
+          if (!bucketListError) {
+            const hasAvatarsBucket = buckets?.some(
+              (bucket) => bucket.id === "avatars",
+            );
+
+            if (!hasAvatarsBucket) {
+              await admin.storage.createBucket("avatars", {
+                public: true,
+                fileSizeLimit: MAX_AVATAR_BYTES,
+                allowedMimeTypes: Array.from(ALLOWED_MIME),
+              });
+            }
+
+            const { error: uploadError } = await admin.storage
+              .from("avatars")
+              .upload(storagePath, buffer, {
+                cacheControl: "3600",
+                upsert: false,
+                contentType: avatar.type,
+              });
+
+            if (!uploadError) {
+              const {
+                data: { publicUrl },
+              } = admin.storage.from("avatars").getPublicUrl(storagePath);
+              nextAvatarUrl = `${publicUrl}?v=${Date.now()}`;
+              uploadSucceeded = true;
+            }
+          }
+        } catch (storageError) {
+          console.warn("[POST /api/profile] Storage unavailable; using fallback:", storageError);
         }
       }
 
       if (!uploadSucceeded) {
+        // The hosted project may not have the `avatars` Storage bucket yet.
+        // Store the image inline as a data URL so profile saving still works
+        // immediately; a later Storage migration can move these to objects.
         try {
-          // Last-resort fallback for projects where Storage is unavailable
-          // or the hosted `avatars` bucket has not been created. The profile
-          // row remains fully self-contained, so saving the name + photo does
-          // not fail just because Storage is misconfigured.
           nextAvatarUrl = await buildAvatarDataUrl(avatar);
         } catch (error) {
           return jsonError(
