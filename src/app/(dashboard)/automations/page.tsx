@@ -178,7 +178,7 @@ export default function AutomationsPage() {
         </GatedButton>
       </div>
 
-      {showTemplates && (
+      {showTemplates && canCreate && (
         <section>
           <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{t("templatesTitle")}</h2>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -219,6 +219,7 @@ export default function AutomationsPage() {
             <AutomationCard
               key={a.id}
               automation={a}
+              canManage={canCreate}
               onToggle={(next) => toggleActive(a, next)}
               onEdit={() => router.push(`/automations/${a.id}/edit`)}
               onDuplicate={() => duplicate(a)}
@@ -263,6 +264,7 @@ export default function AutomationsPage() {
 
 function AutomationCard({
   automation,
+  canManage,
   onToggle,
   onEdit,
   onDuplicate,
@@ -271,6 +273,7 @@ function AutomationCard({
   t,
 }: {
   automation: Automation
+  canManage: boolean
   onToggle: (next: boolean) => void
   onEdit: () => void
   onDuplicate: () => void
@@ -289,47 +292,24 @@ function AutomationCard({
           <Zap className="h-5 w-5 text-primary" />
         </div>
 
-        <button
-          type="button"
-          onClick={onEdit}
-          className="min-w-0 flex-1 text-left"
-        >
-          <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-semibold text-foreground">
-              {automation.name}
-            </span>
-            {automation.is_active && (
-              <span className="relative flex h-2 w-2" aria-label="active">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-              </span>
-            )}
+        {canManage ? (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="min-w-0 flex-1 text-left"
+          >
+            <CardContent automation={automation} meta={meta} t={t} />
+          </button>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <CardContent automation={automation} meta={meta} t={t} />
           </div>
-          {automation.description && (
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">{automation.description}</p>
-          )}
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span
-              className={cn(
-                "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                meta.pillClass,
-              )}
-            >
-              {meta.label}
-            </span>
-            <span className="tabular-nums">
-              {automation.execution_count === 1
-                ? t("runs", { count: automation.execution_count })
-                : t("runsPlural", { count: automation.execution_count })}
-            </span>
-            <span aria-hidden>·</span>
-            <span>{t("lastRun", { time: formatRelative(automation.last_executed_at) })}</span>
-          </div>
-        </button>
+        )}
 
         <div className="flex items-center gap-3">
           <Switch
             checked={automation.is_active}
+            disabled={!canManage}
             onCheckedChange={(v) => onToggle(!!v)}
             aria-label={automation.is_active ? t("deactivate") : t("activate")}
           />
@@ -342,27 +322,82 @@ function AutomationCard({
               <MoreVertical className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onEdit}>
-                <Pencil className="h-4 w-4" />
-                {t("edit")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onDuplicate}>
-                <Copy className="h-4 w-4" />
-                {t("duplicate")}
-              </DropdownMenuItem>
+              {canManage && (
+                <>
+                  <DropdownMenuItem onClick={onEdit}>
+                    <Pencil className="h-4 w-4" />
+                    {t("edit")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onDuplicate}>
+                    <Copy className="h-4 w-4" />
+                    {t("duplicate")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem onClick={onLogs}>
                 <FileText className="h-4 w-4" />
                 {t("viewLogs")}
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onClick={onDelete}>
-                <Trash2 className="h-4 w-4" />
-                {t("delete")}
-              </DropdownMenuItem>
+              {canManage && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onClick={onDelete}>
+                    <Trash2 className="h-4 w-4" />
+                    {t("delete")}
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
     </li>
+  )
+}
+
+function CardContent({
+  automation,
+  meta,
+  t,
+}: {
+  automation: Automation
+  meta: ReturnType<typeof triggerMeta>
+  t: ReturnType<typeof useTranslations>
+}) {
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <span className="truncate text-sm font-semibold text-foreground">
+          {automation.name}
+        </span>
+        {automation.is_active && (
+          <span className="relative flex h-2 w-2" aria-label="active">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+          </span>
+        )}
+      </div>
+      {automation.description && (
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">{automation.description}</p>
+      )}
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span
+          className={cn(
+            "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
+            meta.pillClass,
+          )}
+        >
+          {meta.label}
+        </span>
+        <span className="tabular-nums">
+          {automation.execution_count === 1
+            ? t("runs", { count: automation.execution_count })
+            : t("runsPlural", { count: automation.execution_count })}
+        </span>
+        <span aria-hidden>·</span>
+        <span>{t("lastRun", { time: formatRelative(automation.last_executed_at) })}</span>
+      </div>
+    </>
   )
 }
