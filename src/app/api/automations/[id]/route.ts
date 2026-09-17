@@ -17,7 +17,7 @@ async function requireUser() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  return user
+  return { user, supabase }
 }
 
 export async function GET(
@@ -25,22 +25,31 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const user = await requireUser()
+  const { user, supabase } = await requireUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const admin = supabaseAdmin()
-  const { data: automation, error } = await admin
+  // The account-scoped RLS policy is the source of truth here. The list
+  // endpoint already returns every automation visible to the caller's
+  // account; using user_id here would make shared-account automations open
+  // in the list but return 404 when a member tried to edit them.
+  const { data: automation, error } = await supabase
     .from('automations')
     .select('*')
     .eq('id', id)
-    .eq('user_id', user.id)
     .maybeSingle()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!automation) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const steps = await loadStepsTree(id)
-  return NextResponse.json({ automation, steps })
+  try {
+    const steps = await loadStepsTree(id)
+    return NextResponse.json({ automation, steps })
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Unable to load automation steps' },
+      { status: 500 },
+    )
+  }
 }
 
 export async function PATCH(
@@ -58,7 +67,7 @@ export async function PATCH(
     return toErrorResponse(err)
   }
 
-  const user = await requireUser()
+  const { user, supabase } = await requireUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
@@ -66,14 +75,19 @@ export async function PATCH(
 
   const admin = supabaseAdmin()
 
-  // Ownership check before we touch anything. Load the fields we need
-  // to compute the post-patch "effective" state for validation.
-  const { data: existing } = await admin
+  // Authorization is intentionally resolved through the caller's normal
+  // Supabase client so account-scoped RLS determines whether this automation
+  // belongs to the caller's account. Do not fall back to user_id ownership.
+  const { data: existing, error: existingErr } = await supabase
     .from('automations')
     .select('id, user_id, is_active, trigger_type, trigger_config')
     .eq('id', id)
     .maybeSingle()
-  if (!existing || existing.user_id !== user.id) {
+
+  if (existingErr) {
+    return NextResponse.json({ error: existingErr.message }, { status: 500 })
+  }
+  if (!existing) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
@@ -89,9 +103,9 @@ export async function PATCH(
   }
 
   // If this PATCH leaves the automation active (either explicitly
-  // activating it OR editing an already-active one), validate the
-  // merged configuration first. Activation is the natural gate — drafts
-  // are still allowed to be incomplete.
+  // activating it OR editing an already-active one), validate the merged
+  // configuration first. Activation is the natural gate — drafts are still
+  // allowed to be incomplete.
   const willBeActive =
     typeof update.is_active === 'boolean' ? update.is_active : existing.is_active
   if (willBeActive) {
@@ -145,14 +159,22 @@ export async function DELETE(
     return toErrorResponse(err)
   }
 
-  const user = await requireUser()
+  const { user, supabase } = await requireUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { error } = await supabaseAdmin()
+  // Verify account-scoped visibility first, then perform the destructive
+  // mutation with the service-role client. This keeps shared-account
+  // automations consistent with the list/detail surfaces while still
+  // enforcing the required role before bypassing RLS.
+  const { data: existing, error: existingErr } = await supabase
     .from('automations')
-    .delete()
+    .select('id')
     .eq('id', id)
-    .eq('user_id', user.id)
+    .maybeSingle()
+  if (existingErr) return NextResponse.json({ error: existingErr.message }, { status: 500 })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const { error } = await supabaseAdmin().from('automations').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
