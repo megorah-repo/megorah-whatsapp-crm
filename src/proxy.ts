@@ -5,10 +5,15 @@ import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/lib/supabase/config'
 const protectedPaths = [
   '/dashboard',
   '/inbox',
+  '/notifications',
   '/contacts',
   '/pipelines',
   '/broadcasts',
   '/automations',
+  '/flows',
+  '/agents',
+  '/calendar',
+  '/email-marketing',
   '/settings',
   '/templates',
 ]
@@ -31,7 +36,7 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
+          cookiesToSet.forEach(({ name, value }) => {
             request.cookies.set(name, value)
           })
           supabaseResponse = NextResponse.next({ request })
