@@ -44,8 +44,16 @@ function schema(item: TemplateLibraryItem): TemplateLibraryVariable[] {
 
 function resolveBrandTokens(text: string, config: TemplateBrandConfig): string {
   return text.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_match, key: string) => {
-    if (key === 'brand_name') return config.brand_name
-    if (key === 'support_phone') return config.support_phone ?? ''
+    if (key === 'brand_name') {
+      const value = config.brand_name?.trim()
+      if (!value) throw new Error('Brand name is required.')
+      return value
+    }
+    if (key === 'support_phone') {
+      const value = config.support_phone?.trim()
+      if (!value) throw new Error('Support phone is required for this template.')
+      return value
+    }
     return `{{${key}}}`
   })
 }
@@ -55,6 +63,16 @@ export function buildLibraryMetaPayload(
   input: CatalogActivationInput,
 ): { payload: TemplatePayload; runtimeKeys: string[] } {
   const vars = schema(item)
+  const requiredBrand = vars.filter((variable) => variable.source === 'brand' && variable.required)
+  for (const variable of requiredBrand) {
+    const configured = variable.key === 'brand_name'
+      ? input.brandConfig.brand_name
+      : input.brandConfig[variable.key as keyof TemplateBrandConfig]
+    if (typeof configured !== 'string' || !configured.trim()) {
+      throw new Error(`${variable.label} is required before activation.`)
+    }
+  }
+
   const known = new Map(vars.map((variable) => [variable.key, variable]))
   const runtimeKeys: string[] = []
   const runtimeIndex = new Map<string, number>()
