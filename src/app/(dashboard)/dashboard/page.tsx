@@ -45,9 +45,6 @@ export default function DashboardPage() {
   const [metricsLoading, setMetricsLoading] = useState(true)
 
   const [range, setRange] = useState<RangeDays>(30)
-  // Keep a cache per range so switching tabs doesn't re-fetch what we
-  // already have. Ranges the user hasn't opened yet stay null and
-  // trigger a fetch on first view.
   const [series, setSeries] = useState<Record<RangeDays, ConversationsSeriesPoint[] | null>>({
     7: null,
     30: null,
@@ -67,9 +64,6 @@ export default function DashboardPage() {
   const loadAll = useCallback(() => {
     const db = createClient()
 
-    // Kick everything off in parallel. Each block has its own
-    // setState + finally so a slow query doesn't hold up faster
-    // sections — each widget shows its own skeleton independently.
     void loadMetrics(db)
       .then((m) => setMetrics(m))
       .catch((err) => console.error('[dashboard] metrics failed:', err))
@@ -90,9 +84,6 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] response time failed:', err))
       .finally(() => setResponseTimeLoading(false))
 
-    // Fetch up to 50 so the biggest page-size option in the feed
-    // (50 rows) is already in memory — switching sizes then becomes
-    // a pure client-side slice with no extra round trip.
     void loadActivity(db, 50)
       .then((a) => setActivity(a))
       .catch((err) => console.error('[dashboard] activity failed:', err))
@@ -103,10 +94,6 @@ export default function DashboardPage() {
     loadAll()
   }, [loadAll])
 
-  // Range switch handler — kept in an event callback (not an effect)
-  // so the setState calls stay out of the react-hooks/set-state-in-effect
-  // rule's way. The cached bucket check means switching back to a
-  // previously-viewed range is instant and doesn't re-fetch.
   const handleRangeChange = useCallback(
     (r: RangeDays) => {
       setRange(r)
@@ -123,16 +110,19 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t('description')}
-        </p>
+      <div className="page-heading">
+        <div>
+          <div className="mb-2 inline-flex items-center rounded-full border border-primary/15 bg-primary/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
+            Megorah workspace
+          </div>
+          <h1 className="text-3xl font-semibold text-foreground sm:text-[34px]">{t('title')}</h1>
+          <p className="page-subtitle text-sm leading-6">
+            {t('description')}
+          </p>
+        </div>
       </div>
 
-      {/* Metric cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="dashboard-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {metricsLoading || !metrics ? (
           Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
@@ -144,8 +134,8 @@ export default function DashboardPage() {
               delta={{
                 sign: metrics.activeConversations.previous,
                 label: deltaLabel(
-                  metrics.activeConversations.previous, 
-                  t('newTodayVsYesterday'), 
+                  metrics.activeConversations.previous,
+                  t('newTodayVsYesterday'),
                   t('noChange', { suffix: t('newTodayVsYesterday') })
                 ),
               }}
@@ -188,18 +178,10 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Quick actions */}
       <QuickActions />
 
-      {/* Charts row */}
-      {/* items-stretch (the grid default) stretches the two columns to
-          match the tallest sibling; adding h-full on each wrapper and
-          on the inner panels makes both cards actually fill that
-          stretched height so their rounded borders line up. Without
-          this, the pipeline card rendered at its natural (shorter)
-          height while the line chart drove the row height. */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <div className="h-full lg:col-span-3">
+        <div className="premium-panel h-full lg:col-span-3">
           <ConversationsChart
             series={series}
             loading={seriesLoading}
@@ -207,7 +189,7 @@ export default function DashboardPage() {
             onRangeChange={handleRangeChange}
           />
         </div>
-        <div className="h-full lg:col-span-2">
+        <div className="premium-panel h-full lg:col-span-2">
           <PipelineDonut
             data={pipeline}
             loading={pipelineLoading}
@@ -216,16 +198,16 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Response time */}
-      <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
+      <div className="premium-panel">
+        <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
+      </div>
 
-      {/* Activity feed */}
-      <ActivityFeed items={activity} loading={activityLoading} />
+      <div className="premium-panel">
+        <ActivityFeed items={activity} loading={activityLoading} />
+      </div>
     </div>
   )
 }
-
-// ------------------------------------------------------------
 
 function deltaLabel(delta: number, suffix: string, noChangeLabel: string): string {
   if (delta === 0) return noChangeLabel
