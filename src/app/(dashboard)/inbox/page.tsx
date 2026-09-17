@@ -403,7 +403,157 @@ function InboxPageInner() {
   const handleConversationsLoaded = useCallback(
     (loaded: Conversation[]) => {
       setConversations(loaded);
-     ...
+      // Resolve a pending deep-link here rather than in an effect — this
+      // is an event handler, so the setState calls below are allowed by
+      // react-hooks/set-state-in-effect. Runs once per ?c=<id> URL value
+      // via the ref, so realtime refreshes of the list can't snap the
+      // user back to the deep-linked thread after they've navigated.
+      if (
+        deepLinkConvId &&
+        autoSelectedForDeepLinkRef.current !== deepLinkConvId &&
+        loaded.length > 0
+      ) {
+        autoSelectedForDeepLinkRef.current = deepLinkConvId;
+        // If the deep-linked conversation is already the active one
+        // (e.g. because the user clicked it in the list and we
+        // router.replace()'d the URL, which made the ConversationList
+        // refetch and land us back here), do NOT re-apply it. Doing so
+        // would setMessages([]) on a thread whose messages have
+        // already been loaded by MessageThread — and because
+        // conversationId didn't change, MessageThread wouldn't
+        // refetch. The thread would read "No messages yet" until a
+        // full page reload rehydrated state from scratch.
+        if (activeConversation?.id === deepLinkConvId) return;
+        const match = loaded.find((c) => c.id === deepLinkConvId);
+        if (match) {
+          setActiveConversation(match);
+          setActiveContact(match.contact ?? null);
+          setMessages([]);
+          // Mirror the optimistic unread reset that handleSelectConversation
+          // does — the user just deep-linked into this conv, treat that the
+          // same as a click. Leaves activeConversation.unread_count alone so
+          // the MessageThread reset effect still fires the server UPDATE.
+          if (match.unread_count > 0) {
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.id === match.id ? { ...c, unread_count: 0 } : c,
+              ),
+            );
+          }
+        }
+      }
+    },
+    [deepLinkConvId, activeConversation?.id]
+  );
+
+  const handleSelectConversation = useCallback(
+    (conv: Conversation) => {
+      // Re-clicking the already-active conversation would clear the
+      // messages array, but the fetch effect in MessageThread only re-runs
+      // when conversationId changes — so messages would stay empty until
+      // the user navigated away and back. Bail out early instead.
+      if (activeConversation?.id === conv.id) return;
+      setActiveConversation(conv);
+      setActiveContact(conv.contact ?? null);
+      setMessages([]);
+      // Optimistically clear the unread badge for this conv. The
+      // server-side reset is fired by the unread-reset effect inside
+      // MessageThread (which reads activeConversation.unread_count, not
+      // the list copy — so we deliberately leave that intact below to
+      // keep the effect firing), and the realtime UPDATE that comes
+      // back will sync to 0 again as a no-op. Zeroing the list copy
+      // here means the user sees the badge disappear the instant they
+      // click instead of waiting for the round-trip — and it persists
+      // even if the realtime UPDATE is dropped.
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conv.id && c.unread_count > 0
+            ? { ...c, unread_count: 0 }
+            : c,
+        ),
+      );
+      // Record the selection on the deep-link ref BEFORE we change the
+      // URL. The router.replace below flips `deepLinkConvId`, which can
+      // in turn cause ConversationList to refetch and eventually call
+      // handleConversationsLoaded again. Without this line, the ref
+      // still points at the previous value, the auto-select block
+      // sees `ref !== deepLinkConvId`, fires a second time, and
+      // clobbers the messages MessageThread just fetched.
+      autoSelectedForDeepLinkRef.current = conv.id;
+      // Reflect the selection in the URL so a refresh lands the user
+      // back in the same thread, and so copy-paste links work. Use
+      // replace() to avoid polluting browser history with every click.
+      router.replace(`/inbox?c=${conv.id}`, { scroll: false });
+    },
+    [activeConversation?.id, router]
+  );
+
+  // Mobile "back" — deselect the conversation so the list pane comes
+  // back. Also clears the ?c= param so a refresh lands on the list
+  // instead of re-opening the thread the user just backed out of.
+  const handleCloseConversation = useCallback(() => {
+    setActiveConversation(null);
+    setActiveContact(null);
+    setMessages([]);
+    // Clearing the ref lets the deep-link auto-selector fire again if
+    // the user later visits /inbox?c=<same-id> — desirable UX.
+    autoSelectedForDeepLinkRef.current = null;
+    router.replace("/inbox", { scroll: false });
+  }, [router]);
+
+
+  const handleMessagesLoaded = useCallback((loaded: Message[]) => {
+    setMessages(loaded);
+  }, []);
+
+  const handleNewMessage = useCallback((msg: Message) => {
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === msg.id)) return prev;
+      return [...prev, msg];
+    });
+  }, []);
+
+  const handleUpdateMessage = useCallback(
+    (id: string, updates: Partial<Message>) => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, ...updates } : m))
+      );
+    },
+    []
+  );
+
+  const handleStatusChange = useCallback(
+    (conversationId: string, status: ConversationStatus) => {
+      setConversations((prev) =>
+        prev.map((c) => (c.id === conversationId ? { ...c, status } : c))
+      );
+      if (activeConversation?.id === conversationId) {
+        setActiveConversation((prev) => (prev ? { ...prev, status } : prev));
+      }
+    },
+    [activeConversation]
+  );
+
+  const handleAssignChange = useCallback(
+    (conversationId: string, assignedAgentId: string | null) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? { ...c, assigned_agent_id: assignedAgentId ?? undefined }
+            : c
+        )
+      );
+      if (activeConversation?.id === conversationId) {
+        setActiveConversation((prev) =>
+          prev
+            ? { ...prev, assigned_agent_id: assignedAgentId ?? undefined }
+            : prev
+        );
+      }
+    },
+    [activeConversation]
+  );
+
   // On mobile (<lg) we show a SINGLE pane — either the list or the
   // thread — rather than cramming both side-by-side. Selecting a
   // conversation slides the thread in; the thread's back button pops
