@@ -1,19 +1,16 @@
 -- ============================================================
 -- 020_repair_flows_account_id.sql
 --
--- Repairs production databases where the conversational-flow
--- migration was never applied completely, or where the later
--- account-sharing migration was applied without the flow tables.
---
--- This migration is intentionally self-healing:
---   1. creates the flow tables when they are missing;
---   2. adds account_id to flows / flow_runs when missing;
---   3. backfills account ownership from profiles / parent flows;
---   4. restores account-scoped indexes + RLS;
---   5. refreshes PostgREST's schema cache.
+-- Self-healing repair for the conversational Flows schema.
+-- Handles both:
+--   1. databases where migration 010 never created the flow tables;
+--   2. databases where the tables exist but account_id from migration
+--      017 was never added/backfilled.
 --
 -- Safe to run more than once.
 -- ============================================================
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 DO $$
 BEGIN
@@ -32,13 +29,55 @@ BEGIN
   END IF;
 END $$;
 
+-- Keep the helper available for the repaired RLS policies.
+CREATE OR REPLACE FUNCTION public.is_account_member(
+  target_account_id UUID,
+  min_role account_role_enum DEFAULT 'viewer'
+) RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.profiles p
+    WHERE p.user_id = auth.uid()
+      AND p.account_id = target_account_id
+      AND CASE p.account_role
+            WHEN 'owner'  THEN 4
+            WHEN 'admin'  THEN 3
+            WHEN 'agent'  THEN 2
+            WHEN 'viewer' THEN 1
+          END
+        >=
+          CASE min_role
+            WHEN 'owner'  THEN 4
+            WHEN 'admin'  THEN 3
+            WHEN 'agent'  THEN 2
+            WHEN 'viewer' THEN 1
+          END
+  );
+$$;
+
+ALTER FUNCTION public.is_account_member(UUID, account_role_enum) OWNER TO postgres;
+GRANT EXECUTE ON FUNCTION public.is_account_member(UUID, account_role_enum) TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- ============================================================
 -- 1. FLOWS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.flows (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  account_id UUID NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+  account_id UUID REFERENCES public.accounts(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL DEFAULT 'draft'
@@ -67,7 +106,9 @@ WHERE f.user_id = p.user_id
 
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM public.flows WHERE account_id IS NULL) THEN
+  IF EXISTS (
+    SELECT 1 FROM public.flows WHERE account_id IS NULL
+  ) THEN
     RAISE EXCEPTION 'flows.account_id backfill incomplete — one or more rows have no linked account';
   END IF;
 END $$;
@@ -91,25 +132,25 @@ ALTER TABLE public.flows ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY flows_select ON public.flows
   FOR SELECT
-  USING (is_account_member(account_id, 'viewer'));
+  USING (public.is_account_member(account_id, 'viewer'));
 
 CREATE POLICY flows_insert ON public.flows
   FOR INSERT
-  WITH CHECK (is_account_member(account_id, 'agent'));
+  WITH CHECK (public.is_account_member(account_id, 'agent'));
 
 CREATE POLICY flows_update ON public.flows
   FOR UPDATE
-  USING (is_account_member(account_id, 'agent'))
-  WITH CHECK (is_account_member(account_id, 'agent'));
+  USING (public.is_account_member(account_id, 'agent'))
+  WITH CHECK (public.is_account_member(account_id, 'agent'));
 
 CREATE POLICY flows_delete ON public.flows
   FOR DELETE
-  USING (is_account_member(account_id, 'agent'));
+  USING (public.is_account_member(account_id, 'agent'));
 
 DROP TRIGGER IF EXISTS set_updated_at ON public.flows;
 CREATE TRIGGER set_updated_at
 BEFORE UPDATE ON public.flows
-FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 -- ============================================================
 -- 2. FLOW NODES
@@ -154,7 +195,7 @@ CREATE POLICY flow_nodes_select ON public.flow_nodes
       SELECT 1
       FROM public.flows f
       WHERE f.id = flow_nodes.flow_id
-        AND is_account_member(f.account_id, 'viewer')
+        AND public.is_account_member(f.account_id, 'viewer')
     )
   );
 
@@ -165,7 +206,7 @@ CREATE POLICY flow_nodes_insert ON public.flow_nodes
       SELECT 1
       FROM public.flows f
       WHERE f.id = flow_nodes.flow_id
-        AND is_account_member(f.account_id, 'agent')
+        AND public.is_account_member(f.account_id, 'agent')
     )
   );
 
@@ -176,7 +217,7 @@ CREATE POLICY flow_nodes_update ON public.flow_nodes
       SELECT 1
       FROM public.flows f
       WHERE f.id = flow_nodes.flow_id
-        AND is_account_member(f.account_id, 'agent')
+        AND public.is_account_member(f.account_id, 'agent')
     )
   )
   WITH CHECK (
@@ -184,7 +225,7 @@ CREATE POLICY flow_nodes_update ON public.flow_nodes
       SELECT 1
       FROM public.flows f
       WHERE f.id = flow_nodes.flow_id
-        AND is_account_member(f.account_id, 'agent')
+        AND public.is_account_member(f.account_id, 'agent')
     )
   );
 
@@ -195,7 +236,7 @@ CREATE POLICY flow_nodes_delete ON public.flow_nodes
       SELECT 1
       FROM public.flows f
       WHERE f.id = flow_nodes.flow_id
-        AND is_account_member(f.account_id, 'agent')
+        AND public.is_account_member(f.account_id, 'agent')
     )
   );
 
@@ -239,7 +280,9 @@ WHERE r.flow_id = f.id
 
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM public.flow_runs WHERE account_id IS NULL) THEN
+  IF EXISTS (
+    SELECT 1 FROM public.flow_runs WHERE account_id IS NULL
+  ) THEN
     RAISE EXCEPTION 'flow_runs.account_id backfill incomplete — one or more rows have no linked account';
   END IF;
 END $$;
@@ -261,16 +304,11 @@ CREATE INDEX IF NOT EXISTS idx_flow_runs_flow_started
 
 DROP POLICY IF EXISTS "Users see own flow runs" ON public.flow_runs;
 DROP POLICY IF EXISTS flow_runs_select ON public.flow_runs;
-DROP POLICY IF EXISTS flow_runs_insert ON public.flow_runs;
-DROP POLICY IF EXISTS flow_runs_update ON public.flow_runs;
-DROP POLICY IF EXISTS flow_runs_delete ON public.flow_runs;
 ALTER TABLE public.flow_runs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY flow_runs_select ON public.flow_runs
   FOR SELECT
-  USING (is_account_member(account_id, 'viewer'));
-
--- Runner writes use service_role; no client write policies are needed.
+  USING (public.is_account_member(account_id, 'viewer'));
 
 -- ============================================================
 -- 4. FLOW RUN EVENTS
@@ -311,12 +349,12 @@ CREATE POLICY flow_run_events_select ON public.flow_run_events
       SELECT 1
       FROM public.flow_runs r
       WHERE r.id = flow_run_events.flow_run_id
-        AND is_account_member(r.account_id, 'viewer')
+        AND public.is_account_member(r.account_id, 'viewer')
     )
   );
 
 -- ============================================================
--- 5. REALTIME
+-- 5. REALTIME + SCHEMA CACHE
 -- ============================================================
 DO $$
 BEGIN
@@ -332,7 +370,4 @@ BEGIN
   END IF;
 END $$;
 
--- ============================================================
--- 6. PostgREST schema refresh
--- ============================================================
 NOTIFY pgrst, 'reload schema';
