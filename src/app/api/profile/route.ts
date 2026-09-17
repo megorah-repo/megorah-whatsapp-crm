@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 
 import { createClient as createServerClient } from "@/lib/supabase/server";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "@/lib/supabase/config";
+import { SUPABASE_URL } from "@/lib/supabase/config";
 
 export const runtime = "nodejs";
 
@@ -27,27 +27,6 @@ function jsonError(message: string, status: number) {
 function getServiceRoleKey() {
   const value = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   return value || null;
-}
-
-async function ensureAvatarBucket(
-  admin: ReturnType<typeof createAdminClient>,
-) {
-  const { data, error } = await admin.storage.listBuckets();
-  if (error) {
-    throw new Error(`Unable to inspect avatar storage: ${error.message}`);
-  }
-
-  if (data?.some((bucket) => bucket.id === "avatars")) return;
-
-  const { error: createError } = await admin.storage.createBucket("avatars", {
-    public: true,
-    fileSizeLimit: MAX_AVATAR_BYTES,
-    allowedMimeTypes: Array.from(ALLOWED_MIME),
-  });
-
-  if (createError) {
-    throw new Error(`Unable to initialize avatar storage: ${createError.message}`);
-  }
 }
 
 export async function POST(request: Request) {
@@ -75,7 +54,8 @@ export async function POST(request: Request) {
     const removeAvatar = formData.get("remove_avatar") === "true";
     const avatar = formData.get("avatar");
 
-    const fullName = typeof fullNameValue === "string" ? fullNameValue.trim() : "";
+    const fullName =
+      typeof fullNameValue === "string" ? fullNameValue.trim() : "";
     if (!fullName) {
       return jsonError("Name is required.", 400);
     }
@@ -92,12 +72,17 @@ export async function POST(request: Request) {
 
     const { data: currentProfile, error: profileReadError } = await admin
       .from("profiles")
-      .select("id, full_name, email, avatar_url, role, beta_features, account_id, account_role")
+      .select(
+        "id, full_name, email, avatar_url, role, beta_features, account_id, account_role",
+      )
       .eq("user_id", user.id)
       .maybeSingle();
 
     if (profileReadError) {
-      return jsonError(`Unable to load profile: ${profileReadError.message}`, 500);
+      return jsonError(
+        `Unable to load profile: ${profileReadError.message}`,
+        500,
+      );
     }
 
     if (!currentProfile) {
@@ -108,13 +93,42 @@ export async function POST(request: Request) {
 
     if (avatar instanceof File && avatar.size > 0) {
       if (!ALLOWED_MIME.has(avatar.type)) {
-        return jsonError("Unsupported image format. Use PNG, JPG, WEBP, or GIF.", 400);
+        return jsonError(
+          "Unsupported image format. Use PNG, JPG, WEBP, or GIF.",
+          400,
+        );
       }
       if (avatar.size > MAX_AVATAR_BYTES) {
         return jsonError("Profile photo must be 2 MB or smaller.", 400);
       }
 
-      await ensureAvatarBucket(admin);
+      const { data: buckets, error: bucketListError } =
+        await admin.storage.listBuckets();
+
+      if (bucketListError) {
+        return jsonError(
+          `Unable to inspect avatar storage: ${bucketListError.message}`,
+          500,
+        );
+      }
+
+      if (!buckets?.some((bucket) => bucket.id === "avatars")) {
+        const { error: createBucketError } = await admin.storage.createBucket(
+          "avatars",
+          {
+            public: true,
+            fileSizeLimit: MAX_AVATAR_BYTES,
+            allowedMimeTypes: Array.from(ALLOWED_MIME),
+          },
+        );
+
+        if (createBucketError && createBucketError.message !== "Bucket already exists") {
+          return jsonError(
+            `Unable to initialize avatar storage: ${createBucketError.message}`,
+            500,
+          );
+        }
+      }
 
       const extension =
         ALLOWED_EXTENSIONS.get(avatar.type) ??
@@ -132,7 +146,10 @@ export async function POST(request: Request) {
         });
 
       if (uploadError) {
-        return jsonError(`Profile photo upload failed: ${uploadError.message}`, 500);
+        return jsonError(
+          `Profile photo upload failed: ${uploadError.message}`,
+          500,
+        );
       }
 
       const {
@@ -150,7 +167,9 @@ export async function POST(request: Request) {
         avatar_url: nextAvatarUrl,
       })
       .eq("user_id", user.id)
-      .select("id, full_name, email, avatar_url, role, beta_features, account_id, account_role")
+      .select(
+        "id, full_name, email, avatar_url, role, beta_features, account_id, account_role",
+      )
       .single();
 
     if (updateError) {
