@@ -160,7 +160,7 @@ function SignupPageInner() {
                 type="text"
                 autoComplete="name"
                 maxLength={MAX_NAME_LENGTH}
-                placeholder="John Doe"
+                placeholder="Enter name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value.slice(0, MAX_NAME_LENGTH))}
                 required
