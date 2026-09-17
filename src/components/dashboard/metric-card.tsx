@@ -23,18 +23,27 @@ interface MetricCardProps {
 
 export function MetricCard({ title, value, icon: Icon, delta, subtitle }: MetricCardProps) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="flex items-start justify-between">
-        <p className="text-sm font-medium text-muted-foreground">{title}</p>
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <Icon className="h-4 w-4" />
+    <div className="metric-card p-5 sm:p-5.5">
+      <div className="relative z-10 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground/85">
+            {title}
+          </p>
+          <p className="mt-3 text-[30px] font-semibold leading-none tracking-[-0.035em] tabular-nums text-foreground sm:text-[32px]">
+            {value}
+          </p>
+        </div>
+        <div className="metric-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-primary">
+          <Icon className="h-[18px] w-[18px]" />
         </div>
       </div>
-      <p className="mt-3 text-[28px] leading-none font-bold tabular-nums text-foreground">
-        {value}
-      </p>
-      {delta ? <DeltaRow sign={delta.sign} label={delta.label} /> : subtitle ? (
-        <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
+
+      {delta ? (
+        <div className="relative z-10 mt-5">
+          <DeltaRow sign={delta.sign} label={delta.label} />
+        </div>
+      ) : subtitle ? (
+        <p className="relative z-10 mt-4 text-sm text-muted-foreground">{subtitle}</p>
       ) : null}
     </div>
   )
@@ -43,14 +52,14 @@ export function MetricCard({ title, value, icon: Icon, delta, subtitle }: Metric
 function DeltaRow({ sign, label }: { sign: number; label: string }) {
   const tone =
     sign > 0
-      ? 'text-primary'
+      ? 'text-emerald-400'
       : sign < 0
       ? 'text-red-400'
       : 'text-muted-foreground'
   const Arrow = sign > 0 ? ArrowUp : sign < 0 ? ArrowDown : Minus
   return (
-    <div className={cn('mt-2 flex items-center gap-1 text-sm', tone)}>
-      <Arrow className="h-4 w-4" aria-hidden />
+    <div className={cn('inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/35 px-2.5 py-1 text-xs font-medium', tone)}>
+      <Arrow className="h-3.5 w-3.5" aria-hidden />
       <span className="tabular-nums">{label}</span>
     </div>
   )
