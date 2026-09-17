@@ -231,6 +231,7 @@ function SignupPageInner() {
             </Link>
           </p>
         </CardContent>
-      </div>
+      </Card>
+    </div>
   );
 }
