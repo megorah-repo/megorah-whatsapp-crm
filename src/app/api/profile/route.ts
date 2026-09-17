@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
 
 import { createClient as createServerClient } from "@/lib/supabase/server";
-import { SUPABASE_URL } from "@/lib/supabase/config";
 
 export const runtime = "nodejs";
 
@@ -24,26 +22,13 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ ok: false, message }, { status });
 }
 
-function getServiceRoleKey() {
-  const value = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  return value || null;
-}
-
 export async function POST(request: Request) {
-  const serviceRoleKey = getServiceRoleKey();
-  if (!serviceRoleKey) {
-    return jsonError(
-      "Profile saving is not configured: SUPABASE_SERVICE_ROLE_KEY is missing.",
-      500,
-    );
-  }
-
   try {
-    const serverSupabase = await createServerClient();
+    const supabase = await createServerClient();
     const {
       data: { user },
       error: userError,
-    } = await serverSupabase.auth.getUser();
+    } = await supabase.auth.getUser();
 
     if (userError || !user) {
       return jsonError("You are not signed in.", 401);
@@ -63,14 +48,7 @@ export async function POST(request: Request) {
       return jsonError("Name must be 120 characters or fewer.", 400);
     }
 
-    const admin = createAdminClient(SUPABASE_URL, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
-
-    const { data: currentProfile, error: profileReadError } = await admin
+    const { data: currentProfile, error: profileReadError } = await supabase
       .from("profiles")
       .select(
         "id, full_name, email, avatar_url, role, beta_features, account_id, account_role",
@@ -102,34 +80,6 @@ export async function POST(request: Request) {
         return jsonError("Profile photo must be 2 MB or smaller.", 400);
       }
 
-      const { data: buckets, error: bucketListError } =
-        await admin.storage.listBuckets();
-
-      if (bucketListError) {
-        return jsonError(
-          `Unable to inspect avatar storage: ${bucketListError.message}`,
-          500,
-        );
-      }
-
-      if (!buckets?.some((bucket) => bucket.id === "avatars")) {
-        const { error: createBucketError } = await admin.storage.createBucket(
-          "avatars",
-          {
-            public: true,
-            fileSizeLimit: MAX_AVATAR_BYTES,
-            allowedMimeTypes: Array.from(ALLOWED_MIME),
-          },
-        );
-
-        if (createBucketError && createBucketError.message !== "Bucket already exists") {
-          return jsonError(
-            `Unable to initialize avatar storage: ${createBucketError.message}`,
-            500,
-          );
-        }
-      }
-
       const extension =
         ALLOWED_EXTENSIONS.get(avatar.type) ??
         avatar.name.split(".").pop()?.toLowerCase() ??
@@ -137,7 +87,7 @@ export async function POST(request: Request) {
       const storagePath = `${user.id}/avatar-${crypto.randomUUID()}.${extension}`;
       const buffer = Buffer.from(await avatar.arrayBuffer());
 
-      const { error: uploadError } = await admin.storage
+      const { error: uploadError } = await supabase.storage
         .from("avatars")
         .upload(storagePath, buffer, {
           cacheControl: "3600",
@@ -154,13 +104,13 @@ export async function POST(request: Request) {
 
       const {
         data: { publicUrl },
-      } = admin.storage.from("avatars").getPublicUrl(storagePath);
-      nextAvatarUrl = publicUrl;
+      } = supabase.storage.from("avatars").getPublicUrl(storagePath);
+      nextAvatarUrl = `${publicUrl}?v=${Date.now()}`;
     } else if (removeAvatar) {
       nextAvatarUrl = null;
     }
 
-    const { data: updatedProfile, error: updateError } = await admin
+    const { data: updatedProfile, error: updateError } = await supabase
       .from("profiles")
       .update({
         full_name: fullName,
