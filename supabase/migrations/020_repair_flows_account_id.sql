@@ -55,7 +55,6 @@ CREATE TABLE IF NOT EXISTS public.flows (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Existing deployments may already have flows without account_id.
 ALTER TABLE public.flows
   ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES public.accounts(id) ON DELETE CASCADE;
 
@@ -66,11 +65,12 @@ WHERE f.user_id = p.user_id
   AND f.account_id IS NULL
   AND p.account_id IS NOT NULL;
 
-IF EXISTS (
-  SELECT 1 FROM public.flows WHERE account_id IS NULL
-) THEN
-  RAISE EXCEPTION 'flows.account_id backfill incomplete — one or more rows have no linked account';
-END IF;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.flows WHERE account_id IS NULL) THEN
+    RAISE EXCEPTION 'flows.account_id backfill incomplete — one or more rows have no linked account';
+  END IF;
+END $$;
 
 ALTER TABLE public.flows
   ALTER COLUMN account_id SET NOT NULL;
@@ -106,7 +106,6 @@ CREATE POLICY flows_delete ON public.flows
   FOR DELETE
   USING (is_account_member(account_id, 'agent'));
 
--- Updated-at trigger.
 DROP TRIGGER IF EXISTS set_updated_at ON public.flows;
 CREATE TRIGGER set_updated_at
 BEFORE UPDATE ON public.flows
@@ -238,11 +237,12 @@ WHERE r.flow_id = f.id
   AND r.account_id IS NULL
   AND f.account_id IS NOT NULL;
 
-IF EXISTS (
-  SELECT 1 FROM public.flow_runs WHERE account_id IS NULL
-) THEN
-  RAISE EXCEPTION 'flow_runs.account_id backfill incomplete — one or more rows have no linked account';
-END IF;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.flow_runs WHERE account_id IS NULL) THEN
+    RAISE EXCEPTION 'flow_runs.account_id backfill incomplete — one or more rows have no linked account';
+  END IF;
+END $$;
 
 ALTER TABLE public.flow_runs
   ALTER COLUMN account_id SET NOT NULL;
