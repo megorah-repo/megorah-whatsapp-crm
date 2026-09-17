@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Suspense, useMemo, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -12,30 +13,45 @@ import { ProfileForm } from '@/components/settings/profile-form';
 import { SecurityPanel } from '@/components/settings/security-panel';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
-import { TemplateManager } from '@/components/settings/template-manager';
 import { QuickRepliesManager } from '@/components/settings/quick-replies-manager';
 import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
 import { DealsSettings } from '@/components/settings/deals-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
-import {
-  resolveSection,
-  type SettingsSection,
-} from '@/components/settings/settings-sections';
+import { resolveSection, type SettingsSection } from '@/components/settings/settings-sections';
 
 // `useSearchParams` opts this page out of static prerendering unless it
-// sits under a Suspense boundary. Without one, the production build hits
-// the "missing Suspense with CSR bailout" error and the whole page bails
-// to client-side rendering — shipping a settings screen whose rail never
-// wires up its click handlers. You land on the section the URL carried
-// (the account-menu Settings link points at `?tab=whatsapp`) and can't
-// navigate away. Mirror the login/signup split: a thin wrapper supplies
-// the boundary; the inner component reads the query string.
+// sits under a Suspense boundary. Keep the boundary so the settings rail
+// remains fully interactive in production builds.
 export default function SettingsPage() {
   return (
     <Suspense fallback={null}>
       <SettingsPageInner />
     </Suspense>
+  );
+}
+
+function TemplateLibraryPanel() {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-card/70 p-6 shadow-sm">
+      <div className="max-w-2xl">
+        <div className="mb-3 inline-flex rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+          Managed Template Library
+        </div>
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">
+          Website Order Templates
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          Use centrally managed, approval-ready WhatsApp templates instead of creating message structures from scratch. Configure your brand details and activate the templates you need.
+        </p>
+        <Link
+          href="/templates"
+          className="mt-5 inline-flex items-center rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition hover:opacity-90"
+        >
+          Open Template Library
+        </Link>
+      </div>
+    </div>
   );
 }
 
@@ -46,10 +62,6 @@ function SettingsPageInner() {
   const { mode } = useTheme();
   const t = useTranslations('Settings');
 
-  // The URL (`?tab=`) is the single source of truth for the active
-  // section — deep-linkable, and it keeps the existing links in the
-  // app sidebar/header working. Legacy tab values (tags, custom-fields)
-  // resolve onto their new home; unknown/empty → the Overview landing.
   const section = resolveSection(searchParams.get('tab'));
 
   const go = (next: SettingsSection) => {
@@ -58,9 +70,6 @@ function SettingsPageInner() {
     router.replace(`/settings?${params.toString()}`, { scroll: false });
   };
 
-  // Cheap, fetch-free rail hints. The Overview landing carries the
-  // full live status/counts; the rail just surfaces the two that are
-  // already in context.
   const hints: Partial<Record<SettingsSection, ReactNode>> = useMemo(
     () => ({
       appearance: mode.charAt(0).toUpperCase() + mode.slice(1),
@@ -75,7 +84,7 @@ function SettingsPageInner() {
     security: <SecurityPanel />,
     appearance: <AppearancePanel />,
     whatsapp: <WhatsAppConfig />,
-    templates: <TemplateManager />,
+    templates: <TemplateLibraryPanel />,
     'quick-replies': <QuickRepliesManager />,
     fields: <FieldsAndTagsPanel />,
     deals: <DealsSettings />,
