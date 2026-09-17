@@ -10,6 +10,7 @@ const protectedPaths = [
   '/broadcasts',
   '/automations',
   '/settings',
+  '/templates',
 ]
 
 function isProtectedPath(pathname: string) {
