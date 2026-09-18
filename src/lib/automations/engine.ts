@@ -358,6 +358,10 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
 async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string> {
   const db = supabaseAdmin()
 
+  const sendIdempotencyKey = args.logId
+    ? `automation:${args.logId}:${step.id}`
+    : `automation:${args.automation.id}:${step.id}`
+
   switch (step.step_type) {
     case 'send_message': {
       const cfg = step.step_config as SendMessageStepConfig
@@ -371,6 +375,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         conversationId,
         contactId: args.contactId,
         text,
+        idempotencyKey: sendIdempotencyKey,
       })
       return `sent via Meta (${whatsapp_message_id})`
     }
@@ -391,6 +396,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         conversationId,
         contactId: args.contactId,
         payload,
+        idempotencyKey: sendIdempotencyKey,
       })
       return `interactive sent via Meta (${whatsapp_message_id})`
     }
@@ -426,6 +432,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         templateName: cfg.template_name,
         language: cfg.language,
         params,
+        idempotencyKey: sendIdempotencyKey,
       })
       return `template sent via Meta (${whatsapp_message_id})`
     }
