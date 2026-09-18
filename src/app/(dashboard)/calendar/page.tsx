@@ -4,12 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   Check,
+  ChevronDown,
   Copy,
   ExternalLink,
   Loader2,
   Mail,
+  Megaphone,
   PhoneCall,
   RefreshCw,
+  Users,
   Video,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -29,9 +32,20 @@ type EventItem = {
   meetLink: string | null;
 };
 
+type CalendarItem = {
+  id: string;
+  name: string;
+  primary: boolean;
+  selected: boolean;
+  timeZone: string | null;
+};
+
 export default function CalendarPage() {
   const [connected, setConnected] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
+  const [calendarId, setCalendarId] = useState("primary");
+  const [calendars, setCalendars] = useState<CalendarItem[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -43,11 +57,37 @@ export default function CalendarPage() {
   const [minutes, setMinutes] = useState("30");
   const [sendWhatsApp, setSendWhatsApp] = useState(true);
   const [createdMeet, setCreatedMeet] = useState("");
+  const [mode, setMode] = useState<"meeting" | "calendar" | "marketing">("meeting");
 
   const timezone = useMemo(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
     [],
   );
+
+  async function loadCalendars() {
+    setCalendarLoading(true);
+    try {
+      const response = await fetch("/api/calendar/google/calendars", {
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as {
+        calendars?: CalendarItem[];
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to load Google calendars.");
+      }
+      setCalendars(payload.calendars ?? []);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to load Google calendars.",
+      );
+    } finally {
+      setCalendarLoading(false);
+    }
+  }
 
   async function refresh() {
     setLoading(true);
@@ -58,26 +98,44 @@ export default function CalendarPage() {
       const status = (await statusResponse.json()) as {
         connected?: boolean;
         email?: string | null;
+        calendarId?: string | null;
+        error?: string;
       };
+
+      if (!statusResponse.ok) {
+        throw new Error(status.error || "Unable to check Google Calendar.");
+      }
+
       setConnected(Boolean(status.connected));
       setEmail(status.email ?? null);
+      setCalendarId(status.calendarId || "primary");
 
       if (!status.connected) {
         setEvents([]);
+        setCalendars([]);
         return;
       }
 
+      await loadCalendars();
+
       const from = new Date().toISOString();
-      const to = new Date(Date.now() + 30 * 86400000).toISOString();
+      const to = new Date(Date.now() + 60 * 86400000).toISOString();
       const response = await fetch(
         `/api/calendar/google/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
         { cache: "no-store" },
       );
-      const payload = (await response.json()) as { events?: EventItem[]; error?: string };
-      if (!response.ok) throw new Error(payload.error || "Unable to sync Google Calendar.");
+      const payload = (await response.json()) as {
+        events?: EventItem[];
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to sync Google Calendar.");
+      }
       setEvents(payload.events ?? []);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to load calendar.");
+      toast.error(
+        error instanceof Error ? error.message : "Unable to load calendar.",
+      );
     } finally {
       setLoading(false);
     }
@@ -86,6 +144,27 @@ export default function CalendarPage() {
   useEffect(() => {
     void refresh();
   }, []);
+
+  async function selectCalendar(nextId: string) {
+    if (!nextId || nextId === calendarId) return;
+    setCalendarId(nextId);
+    try {
+      const response = await fetch("/api/calendar/google/calendars", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ calendar_id: nextId }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Unable to save calendar.");
+      toast.success("Calendar selected.");
+      await refresh();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to save calendar.",
+      );
+      await refresh();
+    }
+  }
 
   async function book() {
     if (!connected) {
@@ -106,6 +185,7 @@ export default function CalendarPage() {
 
     setBusy(true);
     setCreatedMeet("");
+
     try {
       const response = await fetch("/api/calendar/book", {
         method: "POST",
@@ -121,30 +201,42 @@ export default function CalendarPage() {
           send_whatsapp: sendWhatsApp,
         }),
       });
+
       const payload = (await response.json()) as {
         error?: string;
         booking?: { google_meet_link?: string | null };
         whatsapp_error?: string | null;
       };
-      if (!response.ok) throw new Error(payload.error || "Meeting creation failed.");
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Meeting creation failed.");
+      }
 
       const meet = payload.booking?.google_meet_link || "";
       setCreatedMeet(meet);
+
       if (payload.whatsapp_error) {
-        toast.warning(`Meeting created, but WhatsApp reminder failed: ${payload.whatsapp_error}`);
+        toast.warning(
+          `Meeting created, but WhatsApp reminder failed: ${payload.whatsapp_error}`,
+        );
       } else {
-        toast.success("Meeting created. Google invite + Meet link are ready.");
+        toast.success("Meeting booked. Calendar + Meet + client notification are ready.");
       }
+
       await refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Meeting creation failed.");
+      toast.error(
+        error instanceof Error ? error.message : "Meeting creation failed.",
+      );
     } finally {
       setBusy(false);
     }
   }
 
   async function disconnect() {
-    const response = await fetch("/api/calendar/google/disconnect", { method: "POST" });
+    const response = await fetch("/api/calendar/google/disconnect", {
+      method: "POST",
+    });
     if (!response.ok) {
       toast.error("Unable to disconnect Google Calendar.");
       return;
@@ -152,6 +244,7 @@ export default function CalendarPage() {
     setConnected(false);
     setEmail(null);
     setEvents([]);
+    setCalendars([]);
     toast.success("Google Calendar disconnected.");
   }
 
@@ -162,32 +255,34 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <CalendarDays className="h-6 w-6 text-primary" />
-            <h1 className="text-2xl font-bold tracking-tight">Calendar & Meetings</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Calendar & Marketing</h1>
           </div>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Connect Google Calendar once, then create meetings directly from Megorah. Every booking creates a Google Calendar event, a fresh Google Meet link, calendar invite and optional WhatsApp confirmation.
+            Connect one Google account once. Then manage meetings, calendar data and marketing actions from this panel.
           </p>
         </div>
+
         {!connected ? (
           <a
             href="/api/calendar/google/connect"
             className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
           >
             <CalendarDays className="mr-2 h-4 w-4" />
-            Connect Google Calendar
+            Sign in with Google
           </a>
         ) : (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="rounded-xl border bg-card px-3 py-2 text-xs">
-              <div className="font-medium">Google Calendar connected</div>
+              <div className="font-medium">Google connected</div>
               <div className="text-muted-foreground">{email || "Google account"}</div>
             </div>
             <Button variant="outline" size="sm" onClick={() => void refresh()}>
-              <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
             </Button>
             <Button variant="ghost" size="sm" onClick={() => void disconnect()}>
               Disconnect
@@ -199,37 +294,94 @@ export default function CalendarPage() {
       {!connected ? (
         <Card className="border-primary/20 bg-primary/5">
           <CardHeader>
-            <CardTitle>One-click Google Calendar connection</CardTitle>
+            <CardTitle>One simple connection</CardTitle>
             <CardDescription>
-              An account admin connects Google once. After that, agents can book meetings from this panel without opening Google Calendar.
+              Click <b>Sign in with Google</b>, choose the business Google account, allow Calendar access once, and Megorah will fetch the connected calendar automatically.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-xl border bg-background/70 p-4">
-              <div className="text-xs font-semibold text-primary">01</div>
-              <div className="mt-2 text-sm font-medium">Connect Google</div>
-              <div className="mt-1 text-xs text-muted-foreground">Authorize Calendar access securely through Google OAuth.</div>
-            </div>
-            <div className="rounded-xl border bg-background/70 p-4">
-              <div className="text-xs font-semibold text-primary">02</div>
-              <div className="mt-2 text-sm font-medium">Book inside CRM</div>
-              <div className="mt-1 text-xs text-muted-foreground">Client, time, duration and reminder are all controlled from one panel.</div>
-            </div>
-            <div className="rounded-xl border bg-background/70 p-4">
-              <div className="text-xs font-semibold text-primary">03</div>
-              <div className="mt-2 text-sm font-medium">Client gets the meeting</div>
-              <div className="mt-1 text-xs text-muted-foreground">Google sends the calendar invite and Megorah can send the Meet link on WhatsApp.</div>
-            </div>
+            {[
+              ["01", "Sign in", "Google handles the secure login. Your Google password never reaches Megorah."],
+              ["02", "Choose calendar", "Megorah automatically loads the calendars available to that Google account."],
+              ["03", "Work from CRM", "Book meetings, generate Meet links, notify clients and jump to marketing from one place."],
+            ].map(([step, heading, copyText]) => (
+              <div key={step} className="rounded-xl border bg-background/70 p-4">
+                <div className="text-xs font-semibold text-primary">{step}</div>
+                <div className="mt-2 text-sm font-medium">{heading}</div>
+                <div className="mt-1 text-xs leading-5 text-muted-foreground">{copyText}</div>
+              </div>
+            ))}
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Book a meeting</CardTitle>
-                <CardDescription>No need to leave Megorah CRM.</CardDescription>
-              </CardHeader>
+        <>
+          <div className="grid gap-3 md:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => setMode("meeting")}
+              className={`rounded-2xl border p-5 text-left transition hover:bg-accent ${mode === "meeting" ? "border-primary bg-primary/5" : ""}`}
+            >
+              <Video className="h-5 w-5 text-primary" />
+              <div className="mt-3 font-semibold">New Meeting</div>
+              <div className="mt-1 text-xs text-muted-foreground">Create Google Calendar + Meet + client reminder.</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("calendar")}
+              className={`rounded-2xl border p-5 text-left transition hover:bg-accent ${mode === "calendar" ? "border-primary bg-primary/5" : ""}`}
+            >
+              <CalendarDays className="h-5 w-5 text-primary" />
+              <div className="mt-3 font-semibold">Calendar</div>
+              <div className="mt-1 text-xs text-muted-foreground">See and manage upcoming meetings synced from Google.</div>
+            </button>
+            <a
+              href="/broadcasts"
+              className={`rounded-2xl border p-5 text-left transition hover:bg-accent ${mode === "marketing" ? "border-primary bg-primary/5" : ""}`}
+              onClick={() => setMode("marketing")}
+            >
+              <Megaphone className="h-5 w-5 text-primary" />
+              <div className="mt-3 font-semibold">Bulk Marketing</div>
+              <div className="mt-1 text-xs text-muted-foreground">Open WhatsApp campaigns and broadcast marketing tools.</div>
+            </a>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <CardTitle>{mode === "meeting" ? "Book in one click" : mode === "calendar" ? "Upcoming meetings" : "Bulk marketing"}</CardTitle>
+                  <CardDescription>
+                    {mode === "meeting"
+                      ? "Everything is saved to your selected Google Calendar."
+                      : mode === "calendar"
+                        ? "These events are fetched directly from Google Calendar."
+                        : "Use the existing WhatsApp broadcast workspace for bulk customer communication."}
+                  </CardDescription>
+                </div>
+
+                {calendars.length > 0 && (
+                  <div className="flex min-w-[250px] items-center gap-2 rounded-xl border px-3 py-2">
+                    <CalendarDays className="h-4 w-4 text-primary" />
+                    <select
+                      aria-label="Google calendar"
+                      value={calendarId}
+                      onChange={(e) => void selectCalendar(e.target.value)}
+                      disabled={calendarLoading}
+                      className="w-full bg-transparent text-sm outline-none"
+                    >
+                      {calendars.map((calendar) => (
+                        <option key={calendar.id} value={calendar.id}>
+                          {calendar.name}{calendar.primary ? " (Primary)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+
+            {mode === "meeting" && (
               <CardContent className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2 sm:col-span-2">
@@ -256,7 +408,9 @@ export default function CalendarPage() {
                   <div className="space-y-2">
                     <Label>Duration</Label>
                     <select value={minutes} onChange={(e) => setMinutes(e.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                      {["15","30","45","60","90"].map((v) => <option value={v} key={v}>{v} minutes</option>)}
+                      {["15", "30", "45", "60", "90"].map((v) => (
+                        <option value={v} key={v}>{v} minutes</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -265,7 +419,7 @@ export default function CalendarPage() {
                   <div className="flex items-start gap-3">
                     <PhoneCall className="mt-0.5 h-4 w-4 text-primary" />
                     <div>
-                      <div className="text-sm font-medium">Send WhatsApp confirmation</div>
+                      <div className="text-sm font-medium">Send client confirmation on WhatsApp</div>
                       <div className="text-xs text-muted-foreground">Time + fresh Google Meet link.</div>
                     </div>
                   </div>
@@ -274,13 +428,13 @@ export default function CalendarPage() {
 
                 <Button className="w-full" size="lg" onClick={() => void book()} disabled={busy}>
                   {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-                  {busy ? "Creating meeting…" : "Book + Generate Meet + Notify"}
+                  {busy ? "Creating..." : "Book Meeting + Meet + Notify"}
                 </Button>
 
                 {createdMeet && (
                   <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
                     <div className="flex items-center gap-2 text-sm font-medium">
-                      <Video className="h-4 w-4 text-emerald-600" />
+                      <Video className="h-4 w-4" />
                       Meeting ready
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -299,85 +453,100 @@ export default function CalendarPage() {
                   </div>
                 )}
               </CardContent>
-            </Card>
+            )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Upcoming Google Calendar meetings</CardTitle>
-                <CardDescription>Synced from your connected Google Calendar.</CardDescription>
-              </CardHeader>
+            {mode === "calendar" && (
               <CardContent>
                 {loading ? (
-                  <div className="py-10 text-center text-sm text-muted-foreground"><Loader2 className="mx-auto mb-2 h-4 w-4 animate-spin" />Loading…</div>
+                  <div className="py-10 text-center text-sm text-muted-foreground">
+                    <Loader2 className="mx-auto mb-2 h-4 w-4 animate-spin" />
+                    Syncing...
+                  </div>
                 ) : events.length === 0 ? (
-                  <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">No upcoming meetings.</div>
+                  <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+                    No upcoming meetings found.
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     {events.map((event) => (
                       <div key={event.id} className="rounded-xl border p-4">
-                        <div className="font-medium text-sm">{event.title}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {event.start ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.start)) : "—"}
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {event.meetLink && (
-                            <a
-                              href={event.meetLink}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent"
-                            >
-                              <Video className="mr-2 h-4 w-4" />Join Meet
-                            </a>
-                          )}
-                          {event.htmlLink && (
-                            <a
-                              href={event.htmlLink}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm font-medium hover:bg-accent"
-                            >
-                              Google Calendar
-                            </a>
-                          )}
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <div className="font-medium text-sm">{event.title}</div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {event.start
+                                ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.start))
+                                : "—"}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {event.meetLink && (
+                              <a
+                                href={event.meetLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent"
+                              >
+                                <Video className="mr-2 h-4 w-4" /> Join Meet
+                              </a>
+                            )}
+                            {event.htmlLink && (
+                              <a
+                                href={event.htmlLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm font-medium hover:bg-accent"
+                              >
+                                Open Calendar
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
               </CardContent>
-            </Card>
-          </div>
+            )}
 
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Automatic client reminders</CardTitle>
-                <CardDescription>Professional handoff from a single booking action.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <Mail className="mt-0.5 h-4 w-4 text-primary" />
-                  <div className="text-xs leading-5 text-muted-foreground">
-                    Client email is added as a Google Calendar attendee, so Google sends the calendar invitation/update.
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <PhoneCall className="mt-0.5 h-4 w-4 text-primary" />
-                  <div className="text-xs leading-5 text-muted-foreground">
-                    When WhatsApp is enabled, Megorah sends the meeting time and fresh Meet URL directly from the CRM.
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <CalendarDays className="mt-0.5 h-4 w-4 text-primary" />
-                  <div className="text-xs leading-5 text-muted-foreground">
-                    The Google event is created with email and popup reminders so the meeting remains visible in Calendar too.
-                  </div>
+            {mode === "marketing" && (
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <a href="/broadcasts" className="rounded-xl border p-5 transition hover:bg-accent">
+                    <Megaphone className="h-5 w-5 text-primary" />
+                    <div className="mt-3 text-sm font-semibold">WhatsApp Broadcasts</div>
+                    <div className="mt-1 text-xs leading-5 text-muted-foreground">Send bulk campaigns to selected customer audiences.</div>
+                  </a>
+                  <a href="/contacts" className="rounded-xl border p-5 transition hover:bg-accent">
+                    <Users className="h-5 w-5 text-primary" />
+                    <div className="mt-3 text-sm font-semibold">Customer Data</div>
+                    <div className="mt-1 text-xs leading-5 text-muted-foreground">Open contacts, search customers and prepare audiences for outreach.</div>
+                  </a>
                 </div>
               </CardContent>
-            </Card>
-          </div>
-        </div>
+            )}
+          </Card>
+
+          {mode === "meeting" && (
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-xl border p-4">
+                <Mail className="h-4 w-4 text-primary" />
+                <div className="mt-2 text-sm font-medium">Google invite</div>
+                <div className="mt-1 text-xs text-muted-foreground">Client email is added as the event attendee.</div>
+              </div>
+              <div className="rounded-xl border p-4">
+                <PhoneCall className="h-4 w-4 text-primary" />
+                <div className="mt-2 text-sm font-medium">WhatsApp reminder</div>
+                <div className="mt-1 text-xs text-muted-foreground">One click sends meeting time and Meet link.</div>
+              </div>
+              <div className="rounded-xl border p-4">
+                <CalendarDays className="h-4 w-4 text-primary" />
+                <div className="mt-2 text-sm font-medium">Calendar sync</div>
+                <div className="mt-1 text-xs text-muted-foreground">The event stays inside the selected Google Calendar.</div>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
