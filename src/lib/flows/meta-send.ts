@@ -16,6 +16,7 @@ import {
   isRecipientNotAllowedError,
 } from '@/lib/whatsapp/phone-utils'
 import { supabaseAdmin } from './admin-client'
+import { markOutboundFailed, markOutboundSent, prepareOutboundMessage } from '@/lib/whatsapp/outbound-idempotency'
 
 // ------------------------------------------------------------
 // Flows-side Meta sender (interactive variants).
@@ -48,6 +49,7 @@ interface SendTextEngineArgs {
    *  badges it as an AI reply. Only the auto-reply bot sets this;
    *  deterministic Flow/automation sends leave it false. */
   aiGenerated?: boolean
+  idempotencyKey?: string
 }
 
 /**
@@ -93,6 +95,27 @@ export async function engineSendText(
 
   const accessToken = decrypt(config.access_token)
 
+  const outbound = await prepareOutboundMessage({
+    accountId: args.accountId,
+    idempotencyKey: args.idempotencyKey,
+    conversationId: args.conversationId,
+    senderType: 'bot',
+    contentType: 'text',
+    contentText: args.text,
+    fingerprintPayload: {
+      conversationId: args.conversationId,
+      kind: 'text',
+      text: args.text,
+      aiGenerated: args.aiGenerated ?? false,
+    },
+  })
+  if (!outbound.shouldSend) {
+    if (outbound.existingStatus === 'sent' && outbound.whatsappMessageId) {
+      return { whatsapp_message_id: outbound.whatsappMessageId }
+    }
+    throw new Error('outbound send already in progress for this idempotency key')
+  }
+
   const attempt = async (phone: string): Promise<string> => {
     const r = await sendTextMessage({
       phoneNumberId: config.phone_number_id,
@@ -115,28 +138,29 @@ export async function engineSendText(
       break
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (!isRecipientNotAllowedError(msg)) throw err
+      if (!isRecipientNotAllowedError(msg)) {
+          await markOutboundFailed(args.accountId, outbound.idempotencyKey, msg, outbound.messageId)
+          throw err
+        }
       lastError = err
     }
   }
-  if (lastError) throw lastError
+  if (lastError) {
+    const message = lastError instanceof Error ? lastError.message : String(lastError)
+    await markOutboundFailed(args.accountId, outbound.idempotencyKey, message, outbound.messageId)
+    throw lastError
+  }
 
   if (workingPhone !== sanitized) {
     await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
   }
 
-  const { error: msgErr } = await db.from('messages').insert({
-    conversation_id: args.conversationId,
-    sender_type: 'bot',
-    content_type: 'text',
-    content_text: args.text,
-    message_id: waMessageId,
-    status: 'sent',
-    ai_generated: args.aiGenerated ?? false,
-  })
-  if (msgErr) {
-    throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
-  }
+  await markOutboundSent(
+    args.accountId,
+    outbound.idempotencyKey,
+    outbound.messageId,
+    waMessageId,
+  )
 
   await db
     .from('conversations')
@@ -161,6 +185,7 @@ interface SendMediaEngineArgs {
   caption?: string
   /** Document-only; ignored by Meta for image/video. */
   filename?: string
+  idempotencyKey?: string
 }
 
 /**
@@ -203,6 +228,29 @@ export async function engineSendMedia(
 
   const accessToken = decrypt(config.access_token)
 
+  const outbound = await prepareOutboundMessage({
+    accountId: args.accountId,
+    idempotencyKey: args.idempotencyKey,
+    conversationId: args.conversationId,
+    senderType: 'bot',
+    contentType: args.kind,
+    contentText: args.caption ?? null,
+    mediaUrl: args.link,
+    fingerprintPayload: {
+      conversationId: args.conversationId,
+      kind: args.kind,
+      link: args.link,
+      caption: args.caption ?? null,
+      filename: args.filename ?? null,
+    },
+  })
+  if (!outbound.shouldSend) {
+    if (outbound.existingStatus === 'sent' && outbound.whatsappMessageId) {
+      return { whatsapp_message_id: outbound.whatsappMessageId }
+    }
+    throw new Error('outbound send already in progress for this idempotency key')
+  }
+
   const attempt = async (phone: string): Promise<string> => {
     const r = await sendMediaMessage({
       phoneNumberId: config.phone_number_id,
@@ -232,7 +280,11 @@ export async function engineSendMedia(
       lastError = err
     }
   }
-  if (lastError) throw lastError
+  if (lastError) {
+    const message = lastError instanceof Error ? lastError.message : String(lastError)
+    await markOutboundFailed(args.accountId, outbound.idempotencyKey, message, outbound.messageId)
+    throw lastError
+  }
 
   if (workingPhone !== sanitized) {
     await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
@@ -243,17 +295,12 @@ export async function engineSendMedia(
   // content_text carries the caption (or empty) so the conversation
   // list preview shows something meaningful when the user glances at it.
   const preview = args.caption?.trim() || `[${args.kind}]`
-  const { error: msgErr } = await db.from('messages').insert({
-    conversation_id: args.conversationId,
-    sender_type: 'bot',
-    content_type: args.kind,
-    content_text: args.caption ?? null,
-    message_id: waMessageId,
-    status: 'sent',
-  })
-  if (msgErr) {
-    throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
-  }
+  await markOutboundSent(
+    args.accountId,
+    outbound.idempotencyKey,
+    outbound.messageId,
+    waMessageId,
+  )
 
   await db
     .from('conversations')
