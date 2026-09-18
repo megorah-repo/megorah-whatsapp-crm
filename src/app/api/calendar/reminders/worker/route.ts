@@ -130,7 +130,6 @@ export async function GET(request: Request) {
               ),
             ),
           ),
-          idempotencyKey: `calendar-reminder:${row.reminder_id}`,
         },
       );
 
