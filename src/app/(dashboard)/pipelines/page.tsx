@@ -135,7 +135,17 @@ export default function PipelinesPage() {
       color: s.color,
       position: s.position,
     }));
-    await supabase.from("pipeline_stages").insert(stagesPayload);
+    const { error: stagesError } = await supabase
+      .from("pipeline_stages")
+      .insert(stagesPayload);
+
+    if (stagesError) {
+      console.error("Failed to seed pipeline stages:", stagesError.message);
+      // Compensate for the successful parent insert so a failed seed
+      // never leaves a pipeline with zero stages.
+      await supabase.from("pipelines").delete().eq("id", pipeline.id);
+      return null;
+    }
 
     return pipeline as Pipeline;
   }, [supabase, accountId]);
@@ -285,7 +295,19 @@ export default function PipelinesPage() {
       color: s.color,
       position: s.position,
     }));
-    await supabase.from("pipeline_stages").insert(stagesPayload);
+    const { error: stagesError } = await supabase
+      .from("pipeline_stages")
+      .insert(stagesPayload);
+
+    if (stagesError) {
+      console.error("Failed to create pipeline stages:", stagesError.message);
+      // Compensating rollback: do not report success or retain an empty
+      // pipeline when the default stage set could not be persisted.
+      await supabase.from("pipelines").delete().eq("id", pipeline.id);
+      toast.error(t("toastFailedCreatePipeline"));
+      setCreating(false);
+      return;
+    }
 
     setNewPipelineName("");
     setNewPipelineOpen(false);
