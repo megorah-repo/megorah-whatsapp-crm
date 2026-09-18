@@ -287,11 +287,14 @@ export default function CalendarPage() {
                       <Button size="sm" onClick={() => void copy(createdMeet)}>
                         <Copy className="mr-2 h-4 w-4" /> Copy Meet link
                       </Button>
-                      <Button size="sm" variant="outline" asChild>
-                        <a href={createdMeet} target="_blank" rel="noreferrer">
-                          <ExternalLink className="mr-2 h-4 w-4" /> Open Meet
-                        </a>
-                      </Button>
+                      <a
+                        href={createdMeet}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent"
+                      >
+                        <ExternalLink className="mr-2 h-4 w-4" /> Open Meet
+                      </a>
                     </div>
                   </div>
                 )}
