@@ -95,6 +95,10 @@ vi.mock('@supabase/supabase-js', () => ({
               }),
             }),
           }
+        case 'whatsapp_webhook_jobs':
+          return {
+            insert: () => Promise.resolve({ error: null }),
+          }
         case 'messages':
           return {
             // Two different chains land here, told apart by the count
@@ -202,7 +206,7 @@ vi.mock('@/lib/webhooks/deliver', () => ({
   dispatchWebhookEvent: h.dispatchWebhookEvent,
 }))
 
-import { POST } from './route'
+import { POST, processWebhook } from './route'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 
 const mockGetMediaUrl = vi.mocked(getMediaUrl)
@@ -216,8 +220,8 @@ const TEXT_MESSAGE = {
   text: { body: 'hello' },
 }
 
-function inboundRequest(message: Record<string, unknown> = TEXT_MESSAGE) {
-  const body = {
+function webhookBody(message: Record<string, unknown> = TEXT_MESSAGE) {
+  return {
     entry: [
       {
         changes: [
@@ -233,6 +237,10 @@ function inboundRequest(message: Record<string, unknown> = TEXT_MESSAGE) {
       },
     ],
   }
+}
+
+function inboundRequest(message: Record<string, unknown> = TEXT_MESSAGE) {
+  const body = webhookBody(message)
   return {
     text: async () => JSON.stringify(body),
     headers: { get: () => 'sha256=stub' },
@@ -241,8 +249,7 @@ function inboundRequest(message: Record<string, unknown> = TEXT_MESSAGE) {
 
 async function runWebhook(message?: Record<string, unknown>) {
   const res = await POST(inboundRequest(message))
-  // Drain the after() callback exactly as the runtime would.
-  for (const cb of h.state.afterCallbacks) await cb()
+  await processWebhook(webhookBody(message))
   return res
 }
 
