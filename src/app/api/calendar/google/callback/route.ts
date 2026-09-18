@@ -50,6 +50,9 @@ export async function GET(request: Request) {
       );
     }
 
+    if (!tokens.access_token) {
+      throw new Error("Google did not return an access token.");
+    }
     const email = await googleUserEmail(tokens.access_token);
     const admin = supabaseAdmin();
 
