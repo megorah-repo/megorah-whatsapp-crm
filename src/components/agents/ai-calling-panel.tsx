@@ -292,7 +292,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                 <Label>Voice profile</Label>
                 <Select
                   value={settings.voice}
-                  onValueChange={(value) => update('voice', value)}
+                  onValueChange={(value) => update('voice', value ?? DEFAULTS.voice)}
                   disabled={disabled}
                 >
                   <SelectTrigger>
@@ -314,7 +314,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                 <Label>Language</Label>
                 <Select
                   value={settings.language}
-                  onValueChange={(value) => update('language', value)}
+                  onValueChange={(value) => update('language', value ?? DEFAULTS.language)}
                   disabled={disabled}
                 >
                   <SelectTrigger>
@@ -465,7 +465,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                 <Label htmlFor="max-call">Maximum call duration</Label>
                 <Select
                   value={settings.maxCallMinutes}
-                  onValueChange={(value) => update('maxCallMinutes', value)}
+                  onValueChange={(value) => update('maxCallMinutes', value ?? DEFAULTS.maxCallMinutes)}
                   disabled={disabled}
                 >
                   <SelectTrigger id="max-call">
