@@ -29,7 +29,7 @@ export default function EmailMarketingPage() {
       const stored = window.localStorage.getItem(DRAFT_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as Partial<Draft>;
-        setDraft({ ...EMPTY_DRAFT, ...parsed });
+        queueMicrotask(() => setDraft({ ...EMPTY_DRAFT, ...parsed }));
       }
     } catch {
       // Keep the composer usable if browser storage is unavailable/corrupt.
