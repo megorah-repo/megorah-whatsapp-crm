@@ -323,6 +323,7 @@ interface SendInteractiveButtonsEngineArgs {
   buttons: InteractiveButton[]
   headerText?: string
   footerText?: string
+  idempotencyKey?: string
 }
 
 interface SendInteractiveListEngineArgs {
@@ -335,6 +336,7 @@ interface SendInteractiveListEngineArgs {
   sections: InteractiveListSection[]
   headerText?: string
   footerText?: string
+  idempotencyKey?: string
 }
 
 /**
@@ -402,6 +404,45 @@ async function sendInteractiveViaMeta(
 
   const accessToken = decrypt(config.access_token)
 
+  const interactivePayload: InteractiveMessagePayload =
+    input.kind === 'buttons'
+      ? {
+          kind: 'buttons',
+          body: input.bodyText,
+          header: input.headerText,
+          footer: input.footerText,
+          buttons: input.buttons,
+        }
+      : {
+          kind: 'list',
+          body: input.bodyText,
+          header: input.headerText,
+          footer: input.footerText,
+          button_label: input.buttonLabel,
+          sections: input.sections,
+        }
+
+  const outbound = await prepareOutboundMessage({
+    accountId: input.accountId,
+    idempotencyKey: input.idempotencyKey,
+    conversationId: input.conversationId,
+    senderType: 'bot',
+    contentType: 'interactive',
+    contentText: input.bodyText,
+    interactivePayload,
+    fingerprintPayload: {
+      conversationId: input.conversationId,
+      kind: input.kind,
+      payload: interactivePayload,
+    },
+  })
+  if (!outbound.shouldSend) {
+    if (outbound.existingStatus === 'sent' && outbound.whatsappMessageId) {
+      return { whatsapp_message_id: outbound.whatsappMessageId }
+    }
+    throw new Error('outbound send already in progress for this idempotency key')
+  }
+
   const attempt = async (phone: string): Promise<string> => {
     if (input.kind === 'buttons') {
       const r = await sendInteractiveButtons({
@@ -443,45 +484,25 @@ async function sendInteractiveViaMeta(
       break
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (!isRecipientNotAllowedError(msg)) throw err
+      if (!isRecipientNotAllowedError(msg)) {
+        await markOutboundFailed(input.accountId, outbound.idempotencyKey, msg, outbound.messageId)
+        throw err
+      }
       lastError = err
     }
   }
-  if (lastError) throw lastError
+  if (lastError) {
+    const message = lastError instanceof Error ? lastError.message : String(lastError)
+    await markOutboundFailed(input.accountId, outbound.idempotencyKey, message, outbound.messageId)
+    throw lastError
+  }
 
   if (workingPhone !== sanitized) {
     await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
   }
 
-  // Persist the bot's prompt to the messages table so it appears in
-  // the inbox. content_type='interactive' is supported as of
-  // migration 010; sender_type='bot' distinguishes flow sends from
-  // manual agent sends (the conversation list preview will pick up
-  // last_message_text as a sensible summary).
-  //
-  // We do NOT set interactive_reply_id here — that column is reserved
-  // for the customer's tap on this message, populated by the webhook
-  // when their reply arrives. We DO persist the structured payload so
-  // the inbox thread re-renders the buttons/rows the bot sent (round-
-  // trip), matching the composer + automation send paths.
-  const interactivePayload: InteractiveMessagePayload =
-    input.kind === 'buttons'
-      ? {
-          kind: 'buttons',
-          body: input.bodyText,
-          header: input.headerText,
-          footer: input.footerText,
-          buttons: input.buttons,
-        }
-      : {
-          kind: 'list',
-          body: input.bodyText,
-          header: input.headerText,
-          footer: input.footerText,
-          button_label: input.buttonLabel,
-          sections: input.sections,
-        }
-
+  // The payload was prepared before the Meta call so the same idempotency key can
+  // safely replay the completed send without creating another local row.
   const { error: msgErr } = await db.from('messages').insert({
     conversation_id: input.conversationId,
     sender_type: 'bot',
@@ -506,3 +527,9 @@ async function sendInteractiveViaMeta(
 
   return { whatsapp_message_id: waMessageId }
 }
+  await markOutboundSent(
+    input.accountId,
+    outbound.idempotencyKey,
+    outbound.messageId,
+    waMessageId,
+  )
