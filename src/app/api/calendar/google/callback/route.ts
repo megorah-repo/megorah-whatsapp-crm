@@ -43,7 +43,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const tokens = await exchangeGoogleCode(code);
+    const tokens = await exchangeGoogleCode(code, url.origin);
     if (!tokens.refresh_token) {
       throw new Error(
         "Google did not return a refresh token. Reconnect and allow offline access.",
