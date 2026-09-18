@@ -261,7 +261,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
     .update({
       last_message_text:
         input.kind === 'template'
-          ? (content_text ?? `[template:${input.templateName}]`)
+          ? (contentText ?? `[template:${input.templateName}]`)
           : input.text,
       last_message_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
