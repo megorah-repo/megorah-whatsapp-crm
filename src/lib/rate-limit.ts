@@ -142,7 +142,7 @@ export function rateLimitResponse(result: RateLimitResult): NextResponse {
     Math.ceil((result.retryAfterMs ?? result.reset - Date.now()) / 1000),
   );
   return NextResponse.json(
-    { error: "Too many requests. Please try again later." },
+    { error: "Rate limit exceeded. Please try again later." },
     {
       status: 429,
       headers: {
