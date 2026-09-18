@@ -35,7 +35,7 @@ WITH CHECK (public.is_account_member(account_id, 'admin'));
 CREATE TABLE IF NOT EXISTS public.calendar_bookings (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   account_id UUID NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
-  created_by_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   google_event_id TEXT NOT NULL,
   google_html_link TEXT,
   google_meet_link TEXT,
