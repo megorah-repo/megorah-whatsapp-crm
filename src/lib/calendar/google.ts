@@ -50,7 +50,10 @@ export function buildGoogleCalendarAuthUrl(
   return `${GOOGLE_AUTH_URL}?${params.toString()}`;
 }
 
-export async function exchangeGoogleCode(\n  code: string,\n  fallbackOrigin?: string,\n) {
+export async function exchangeGoogleCode(
+  code: string,
+  fallbackOrigin?: string,
+) {
   const body = new URLSearchParams({
     code,
     client_id: env("GOOGLE_CALENDAR_CLIENT_ID"),
