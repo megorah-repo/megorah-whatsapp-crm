@@ -173,12 +173,13 @@ export default function CalendarPage() {
           </p>
         </div>
         {!connected ? (
-          <Button asChild>
-            <a href="/api/calendar/google/connect">
-              <CalendarDays className="mr-2 h-4 w-4" />
-              Connect Google Calendar
-            </a>
-          </Button>
+          <a
+            href="/api/calendar/google/connect"
+            className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+          >
+            <CalendarDays className="mr-2 h-4 w-4" />
+            Connect Google Calendar
+          </a>
         ) : (
           <div className="flex items-center gap-2">
             <div className="rounded-xl border bg-card px-3 py-2 text-xs">
@@ -316,8 +317,26 @@ export default function CalendarPage() {
                           {event.start ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.start)) : "—"}
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
-                          {event.meetLink && <Button size="sm" variant="outline" asChild><a href={event.meetLink} target="_blank" rel="noreferrer"><Video className="mr-2 h-4 w-4" />Join Meet</a></Button>}
-                          {event.htmlLink && <Button size="sm" variant="ghost" asChild><a href={event.htmlLink} target="_blank" rel="noreferrer">Google Calendar</a></Button>}
+                          {event.meetLink && (
+                            <a
+                              href={event.meetLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent"
+                            >
+                              <Video className="mr-2 h-4 w-4" />Join Meet
+                            </a>
+                          )}
+                          {event.htmlLink && (
+                            <a
+                              href={event.htmlLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm font-medium hover:bg-accent"
+                            >
+                              Google Calendar
+                            </a>
+                          )}
                         </div>
                       </div>
                     ))}
