@@ -14,7 +14,16 @@ function env(name: string) {
 }
 
 export function googleCalendarRedirectUri() {
-  return env("GOOGLE_CALENDAR_REDIRECT_URI");
+  const explicit = process.env.GOOGLE_CALENDAR_REDIRECT_URI?.trim();
+  if (explicit) return explicit;
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "");
+  if (!siteUrl) {
+    throw new Error(
+      "Set GOOGLE_CALENDAR_REDIRECT_URI or NEXT_PUBLIC_SITE_URL before connecting Google Calendar.",
+    );
+  }
+  return `${siteUrl}/api/calendar/google/callback`;
 }
 
 export function buildGoogleCalendarAuthUrl(state: string) {
