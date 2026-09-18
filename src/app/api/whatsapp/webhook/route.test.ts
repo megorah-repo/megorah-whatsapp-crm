@@ -249,7 +249,7 @@ function inboundRequest(message: Record<string, unknown> = TEXT_MESSAGE) {
 
 async function runWebhook(message?: Record<string, unknown>) {
   const res = await POST(inboundRequest(message))
-  await processWebhook(webhookBody(message))
+  await processWebhook(webhookBody(message) as Parameters<typeof processWebhook>[0])
   return res
 }
 
