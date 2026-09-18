@@ -19,6 +19,19 @@ export async function GET(request: Request) {
     });
     return NextResponse.redirect(\n      buildGoogleCalendarAuthUrl(state, new URL(request.url).origin),\n    );
   } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message.startsWith("Missing environment variable") ||
+        error.message.startsWith("Set GOOGLE_CALENDAR_REDIRECT_URI"))
+    ) {
+      return NextResponse.json(
+        {
+          error: "Google Calendar is not configured on this deployment.",
+          detail: error.message,
+        },
+        { status: 503 },
+      );
+    }
     return toErrorResponse(error);
   }
 }
