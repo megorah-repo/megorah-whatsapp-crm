@@ -103,16 +103,15 @@ export async function GET(request: Request) {
         throw new Error("Client has no WhatsApp number for reminder.");
       }
 
-      const { data: conversation } =
-        await resolveConversationByPhoneWithAdmin(
-          admin,
-          row.account_id,
-          booking.client_phone,
-          booking.client_name,
-        );
+      const conversation = await resolveConversationByPhoneWithAdmin(
+        admin,
+        row.account_id,
+        booking.client_phone,
+        booking.client_name,
+      );
 
       const result = await sendMessageToConversation(
-        conversation.supabase,
+        admin,
         row.account_id,
         {
           conversationId: conversation.conversationId,
