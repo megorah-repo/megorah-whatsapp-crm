@@ -45,6 +45,11 @@ export async function POST(request: Request) {
   try {
     const ctx = await requireApiKey(request, 'messages:send');
 
+    const idempotencyKey = request.headers.get('Idempotency-Key')?.trim() || null;
+    if (!idempotencyKey) {
+      return fail('bad_request', 'Idempotency-Key header is required for message sends', 400);
+    }
+
     const body = (await request.json().catch(() => null)) as Record<
       string,
       unknown
@@ -124,6 +129,7 @@ export async function POST(request: Request) {
           typeof body.reply_to_message_id === 'string'
             ? body.reply_to_message_id
             : null,
+        idempotencyKey,
       }
     );
 
