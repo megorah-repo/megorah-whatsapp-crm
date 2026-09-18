@@ -149,13 +149,24 @@ export async function checkDistributedRateLimit(
   key: string,
   { limit, windowMs }: RateLimitOptions,
 ): Promise<RateLimitResult> {
-  const { data, error } = await db.rpc("consume_rate_limit", {
+  if (typeof (db as { rpc?: unknown }).rpc !== "function") {
+    return checkRateLimit(key, { limit, windowMs });
+  }
+
+  let data: unknown;
+  let error: unknown;
+  try {
+    ({ data, error } = await db.rpc("consume_rate_limit", {
     p_bucket_key: key,
     p_limit: limit,
     p_window_seconds: Math.max(1, Math.ceil(windowMs / 1000)),
-  });
+    }));
+  } catch (err) {
+    console.error("[rate-limit] distributed limiter threw; using local fallback:", err);
+    return checkRateLimit(key, { limit, windowMs });
+  }
 
-  if (error || !data || data.length === 0) {
+  if (error || !data || (Array.isArray(data) && data.length === 0)) {
     console.error("[rate-limit] distributed limiter unavailable; using local fallback:", error);
     return checkRateLimit(key, { limit, windowMs });
   }
