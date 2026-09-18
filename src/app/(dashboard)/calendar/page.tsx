@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
@@ -341,7 +342,7 @@ export default function CalendarPage() {
               <div className="mt-3 font-semibold">Calendar</div>
               <div className="mt-1 text-xs text-muted-foreground">See and manage upcoming meetings synced from Google.</div>
             </button>
-            <a
+            <Link
               href="/broadcasts"
               className={`rounded-2xl border p-5 text-left transition hover:bg-accent ${mode === "marketing" ? "border-primary bg-primary/5" : ""}`}
               onClick={() => setMode("marketing")}
@@ -349,7 +350,7 @@ export default function CalendarPage() {
               <Megaphone className="h-5 w-5 text-primary" />
               <div className="mt-3 font-semibold">Bulk Marketing</div>
               <div className="mt-1 text-xs text-muted-foreground">Open WhatsApp campaigns and broadcast marketing tools.</div>
-            </a>
+            </Link>
           </div>
 
           <Card>
@@ -537,16 +538,16 @@ export default function CalendarPage() {
             {mode === "marketing" && (
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <a href="/broadcasts" className="rounded-xl border p-5 transition hover:bg-accent">
+                  <Link href="/broadcasts" className="rounded-xl border p-5 transition hover:bg-accent">
                     <Megaphone className="h-5 w-5 text-primary" />
                     <div className="mt-3 text-sm font-semibold">WhatsApp Broadcasts</div>
                     <div className="mt-1 text-xs leading-5 text-muted-foreground">Send bulk campaigns to selected customer audiences.</div>
-                  </a>
-                  <a href="/contacts" className="rounded-xl border p-5 transition hover:bg-accent">
+                  </Link>
+                  <Link href="/contacts" className="rounded-xl border p-5 transition hover:bg-accent">
                     <Users className="h-5 w-5 text-primary" />
                     <div className="mt-3 text-sm font-semibold">Customer Data</div>
                     <div className="mt-1 text-xs leading-5 text-muted-foreground">Open contacts, search customers and prepare audiences for outreach.</div>
-                  </a>
+                  </Link>
                 </div>
               </CardContent>
             )}
