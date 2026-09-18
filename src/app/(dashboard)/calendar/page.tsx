@@ -42,6 +42,7 @@ type CalendarItem = {
 };
 
 export default function CalendarPage() {
+  const [configured, setConfigured] = useState(true);
   const [connected, setConnected] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [calendarId, setCalendarId] = useState("primary");
@@ -100,6 +101,7 @@ export default function CalendarPage() {
         cache: "no-store",
       });
       const status = (await statusResponse.json()) as {
+        configured?: boolean;
         connected?: boolean;
         email?: string | null;
         calendarId?: string | null;
@@ -110,6 +112,7 @@ export default function CalendarPage() {
         throw new Error(status.error || "Unable to check Google Calendar.");
       }
 
+      setConfigured(status.configured !== false);
       setConnected(Boolean(status.connected));
       setEmail(status.email ?? null);
       setCalendarId(status.calendarId || "primary");
@@ -275,13 +278,19 @@ export default function CalendarPage() {
         </div>
 
         {!connected ? (
-          <a
-            href="/api/calendar/google/connect"
-            className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-          >
-            <CalendarDays className="mr-2 h-4 w-4" />
-            Sign in with Google
-          </a>
+          configured ? (
+            <a
+              href="/api/calendar/google/connect"
+              className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+            >
+              <CalendarDays className="mr-2 h-4 w-4" />
+              Sign in with Google
+            </a>
+          ) : (
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-2 text-xs text-amber-700 dark:text-amber-300">
+              Google Calendar needs one-time admin setup.
+            </div>
+          )
         ) : (
           <div className="flex flex-wrap items-center gap-2">
             <div className="rounded-xl border bg-card px-3 py-2 text-xs">
@@ -300,18 +309,20 @@ export default function CalendarPage() {
       </div>
 
       {!connected ? (
-        <Card className="border-primary/20 bg-primary/5">
+        <Card className={configured ? "border-primary/20 bg-primary/5" : "border-amber-500/20 bg-amber-500/5"}>
           <CardHeader>
-            <CardTitle>One simple connection</CardTitle>
+            <CardTitle>{configured ? "One simple connection" : "Google Calendar setup is not complete"}</CardTitle>
             <CardDescription>
-              Click <b>Sign in with Google</b>, choose the business Google account, allow Calendar access once, and Megorah will fetch the connected calendar automatically.
+              {configured
+                ? <>Click <b>Sign in with Google</b>, choose the business Google account, allow Calendar access once, and Megorah will fetch the connected calendar automatically.</>
+                : <>An account admin needs to add the Google OAuth client ID and secret once in the production environment. After that, users only sign in with Google from this panel.</>}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
             {[
-              ["01", "Sign in", "Google handles the secure login. Your Google password never reaches Megorah."],
+              ["01", configured ? "Sign in" : "One-time admin setup", configured ? "Google handles the secure login. Your Google password never reaches Megorah." : "Add the Google OAuth credentials once. End users do not need to manage them."],
               ["02", "Choose calendar", "Megorah automatically loads the calendars available to that Google account."],
-              ["03", "Work from CRM", "Book meetings, generate Meet links, notify clients and jump to marketing from one place."],
+              ["03", "Work from CRM", "Book meetings, generate Meet links, notify clients, schedule reminders and sync the follow-up lead."],
             ].map(([step, heading, copyText]) => (
               <div key={step} className="rounded-xl border bg-background/70 p-4">
                 <div className="text-xs font-semibold text-primary">{step}</div>
