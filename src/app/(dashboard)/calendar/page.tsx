@@ -56,7 +56,10 @@ export default function CalendarPage() {
   const [startsAt, setStartsAt] = useState("");
   const [minutes, setMinutes] = useState("30");
   const [sendWhatsApp, setSendWhatsApp] = useState(true);
+  const [reminder24h, setReminder24h] = useState(true);
+  const [reminder1h, setReminder1h] = useState(true);
   const [createdMeet, setCreatedMeet] = useState("");
+  const [pipelineSynced, setPipelineSynced] = useState(false);
   const [mode, setMode] = useState<"meeting" | "calendar" | "marketing">("meeting");
 
   const timezone = useMemo(
@@ -199,6 +202,8 @@ export default function CalendarPage() {
           ends_at: end.toISOString(),
           timezone,
           send_whatsapp: sendWhatsApp,
+          reminder_24h: reminder24h,
+          reminder_1h: reminder1h,
         }),
       });
 
@@ -206,6 +211,7 @@ export default function CalendarPage() {
         error?: string;
         booking?: { google_meet_link?: string | null };
         whatsapp_error?: string | null;
+        pipeline?: { synced?: boolean; dealId?: string | null };
       };
 
       if (!response.ok) {
@@ -214,6 +220,7 @@ export default function CalendarPage() {
 
       const meet = payload.booking?.google_meet_link || "";
       setCreatedMeet(meet);
+      setPipelineSynced(Boolean(payload.pipeline?.synced));
 
       if (payload.whatsapp_error) {
         toast.warning(
@@ -415,15 +422,28 @@ export default function CalendarPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between rounded-xl border p-4">
-                  <div className="flex items-start gap-3">
-                    <PhoneCall className="mt-0.5 h-4 w-4 text-primary" />
-                    <div>
-                      <div className="text-sm font-medium">Send client confirmation on WhatsApp</div>
-                      <div className="text-xs text-muted-foreground">Time + fresh Google Meet link.</div>
+                <div className="space-y-3 rounded-xl border p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <PhoneCall className="mt-0.5 h-4 w-4 text-primary" />
+                      <div>
+                        <div className="text-sm font-medium">Client WhatsApp confirmation</div>
+                        <div className="text-xs text-muted-foreground">Send the meeting time + fresh Google Meet link immediately.</div>
+                      </div>
                     </div>
+                    <Switch checked={sendWhatsApp} onCheckedChange={setSendWhatsApp} disabled={!phone} />
                   </div>
-                  <Switch checked={sendWhatsApp} onCheckedChange={setSendWhatsApp} disabled={!phone} />
+
+                  <div className="grid gap-2 border-t pt-3 sm:grid-cols-2">
+                    <label className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs">
+                      <span>24-hour reminder</span>
+                      <Switch checked={reminder24h} onCheckedChange={setReminder24h} disabled={!sendWhatsApp || !phone} />
+                    </label>
+                    <label className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs">
+                      <span>1-hour reminder</span>
+                      <Switch checked={reminder1h} onCheckedChange={setReminder1h} disabled={!sendWhatsApp || !phone} />
+                    </label>
+                  </div>
                 </div>
 
                 <Button className="w-full" size="lg" onClick={() => void book()} disabled={busy}>
@@ -432,10 +452,15 @@ export default function CalendarPage() {
                 </Button>
 
                 {createdMeet && (
-                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                  <div className="space-y-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <Video className="h-4 w-4" />
                       Meeting ready
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {pipelineSynced
+                        ? "Client added to the active sales pipeline with a Meeting Booked follow-up."
+                        : "Meeting created. The calendar event is synced even if no sales pipeline was available."}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <Button size="sm" onClick={() => void copy(createdMeet)}>
