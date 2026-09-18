@@ -38,7 +38,8 @@ export function buildGoogleCalendarAuthUrl(
     redirect_uri: googleCalendarRedirectUri(fallbackOrigin),
     response_type: "code",
     access_type: "offline",
-    prompt: "consent",
+    // Google only asks for consent when it is actually needed.
+    // login_hint below can also prefill the configured business account.
     include_granted_scopes: "true",
     state,
     scope: ["openid", "email", CALENDAR_SCOPE, CALENDAR_LIST_SCOPE].join(" "),
