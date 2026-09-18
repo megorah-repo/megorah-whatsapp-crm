@@ -1,5 +1,4 @@
 import { supabaseAdmin } from "@/lib/flows/admin-client";
-import { decrypt } from "@/lib/whatsapp/encryption";
 import { refreshGoogleAccessToken } from "@/lib/calendar/google";
 
 export async function getGoogleCalendarConnection(accountId: string) {
@@ -23,6 +22,3 @@ export async function getGoogleCalendarAccessToken(accountId: string) {
   return { connection, accessToken };
 }
 
-export function decryptStoredRefreshToken(value: string) {
-  return decrypt(value);
-}
