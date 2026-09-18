@@ -16,6 +16,7 @@ import {
   templateContentText,
 } from '@/lib/whatsapp/template-body'
 import { supabaseAdmin } from './admin-client'
+import { markOutboundFailed, markOutboundSent, prepareOutboundMessage } from '@/lib/whatsapp/outbound-idempotency'
 
 // ------------------------------------------------------------
 // Automation-side Meta sender.
@@ -40,6 +41,7 @@ interface SendTextArgs {
   conversationId: string
   contactId: string
   text: string
+  idempotencyKey?: string
 }
 
 interface SendTemplateArgs {
@@ -50,6 +52,7 @@ interface SendTemplateArgs {
   templateName: string
   language?: string
   params?: string[]
+  idempotencyKey?: string
 }
 
 export async function engineSendText(args: SendTextArgs): Promise<{ whatsapp_message_id: string }> {
@@ -68,6 +71,7 @@ interface SendInteractiveArgs {
   conversationId: string
   contactId: string
   payload: InteractiveMessagePayload
+  idempotencyKey?: string
 }
 
 /**
@@ -84,11 +88,12 @@ interface SendInteractiveArgs {
 export async function engineSendInteractive(
   args: SendInteractiveArgs,
 ): Promise<{ whatsapp_message_id: string }> {
-  const { payload, accountId, userId, conversationId, contactId } = args
+  const { payload, accountId, userId, conversationId, contactId, idempotencyKey } = args
   const common = { accountId, userId, conversationId, contactId }
   if (payload.kind === 'buttons') {
     return engineSendInteractiveButtons({
       ...common,
+      idempotencyKey,
       bodyText: payload.body,
       headerText: payload.header,
       footerText: payload.footer,
@@ -97,6 +102,7 @@ export async function engineSendInteractive(
   }
   return engineSendInteractiveList({
     ...common,
+    idempotencyKey,
     bodyText: payload.body,
     buttonLabel: payload.button_label,
     headerText: payload.header,
@@ -162,6 +168,37 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
         ).row
       : null
 
+  const contentType = input.kind === 'template' ? 'template' : 'text'
+  const contentText =
+    input.kind === 'text'
+      ? input.text
+      : templateContentText(templateRow, input.params ?? [])
+
+  const outbound = await prepareOutboundMessage({
+    accountId: input.accountId,
+    idempotencyKey: input.idempotencyKey,
+    conversationId: input.conversationId,
+    senderType: 'bot',
+    contentType,
+    contentText,
+    templateName: input.kind === 'template' ? input.templateName : null,
+    fingerprintPayload: {
+      conversationId: input.conversationId,
+      kind: input.kind,
+      text: input.kind === 'text' ? input.text : null,
+      templateName: input.kind === 'template' ? input.templateName : null,
+      language: input.kind === 'template' ? input.language ?? null : null,
+      params: input.kind === 'template' ? input.params ?? [] : [],
+    },
+  })
+
+  if (!outbound.shouldSend) {
+    if (outbound.existingStatus === 'sent' && outbound.whatsappMessageId) {
+      return { whatsapp_message_id: outbound.whatsappMessageId }
+    }
+    throw new Error('outbound send already in progress for this idempotency key')
+  }
+
   const attempt = async (phone: string): Promise<string> => {
     if (input.kind === 'template') {
       const r = await sendTemplateMessage({
@@ -202,39 +239,22 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       lastError = err
     }
   }
-  if (lastError) throw lastError
+  if (lastError) {
+    const message = lastError instanceof Error ? lastError.message : String(lastError)
+    await markOutboundFailed(input.accountId, outbound.idempotencyKey, message, outbound.messageId)
+    throw lastError
+  }
 
   if (workingPhone !== sanitized) {
     await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
   }
 
-  // Persist the sent message so it appears in the inbox with a real
-  // Meta message id. sender_type='bot' distinguishes automation sends
-  // from manual agent sends.
-  const content_type = input.kind === 'template' ? 'template' : 'text'
-  // Templates persist the substituted body, same as the manual and
-  // public-API send paths. This was unconditionally null, so every
-  // automation template send rendered as an empty bubble (issue #483).
-  const content_text =
-    input.kind === 'text'
-      ? input.text
-      : templateContentText(templateRow, input.params ?? [])
-  const template_name = input.kind === 'template' ? input.templateName : null
-
-  const { error: msgErr } = await db.from('messages').insert({
-    conversation_id: input.conversationId,
-    sender_type: 'bot',
-    content_type,
-    content_text,
-    template_name,
-    message_id: waMessageId,
-    status: 'sent',
-  })
-  if (msgErr) {
-    // Meta already has the message; record the DB error but don't pretend
-    // the send failed. The engine wraps this in a log line.
-    throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
-  }
+  await markOutboundSent(
+    input.accountId,
+    outbound.idempotencyKey,
+    outbound.messageId,
+    waMessageId,
+  )
 
   await db
     .from('conversations')
