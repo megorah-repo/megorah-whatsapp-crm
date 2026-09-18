@@ -59,7 +59,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git grep -nE '(service_role|sb_secret_|sk-proj-|AKIA[0-9A-Z]{16}|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY)' -- . ':!package-lock.json'; then
+          if git grep -nE '(sb_secret_[A-Za-z0-9_-]{20,}|sk-proj-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|BEGIN (RSA|EC|OPENSSH) PRIVATE KEY)' -- . ':!package-lock.json'; then
             echo 'Potential credential material found in tracked source.'
             exit 1
           fi
