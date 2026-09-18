@@ -18,6 +18,187 @@ function validEmail(value: string) {
 function validPhone(value: string) {
   return !value || /^\+?[1-9]\d{7,14}$/.test(value.replace(/[\s()-]/g, ""));
 }
+function normalizePhone(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+async function findOrCreateContact(
+  admin: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  userId: string,
+  clientName: string,
+  clientEmail: string,
+  clientPhone: string,
+) {
+  const normalized = normalizePhone(clientPhone);
+  let query = admin
+    .from("contacts")
+    .select("id, name, email, phone, phone_normalized")
+    .eq("account_id", accountId)
+    .limit(1);
+
+  if (normalized) {
+    query = query.eq("phone_normalized", normalized);
+  } else if (clientEmail) {
+    query = query.eq("email", clientEmail);
+  } else {
+    return null;
+  }
+
+  const { data: existing, error } = await query.maybeSingle();
+  if (error && !String(error.message).includes("phone_normalized")) {
+    throw new Error(error.message);
+  }
+  if (existing) return existing;
+
+  const { data: created, error: createError } = await admin
+    .from("contacts")
+    .insert({
+      user_id: userId,
+      account_id: accountId,
+      phone: clientPhone || clientEmail || "",
+      name: clientName || null,
+      email: clientEmail || null,
+    })
+    .select("id, name, email, phone")
+    .single();
+
+  if (createError || !created) {
+    throw new Error(
+      createError?.message || "Could not create the client contact.",
+    );
+  }
+  return created;
+}
+
+async function syncBookingToPipeline(
+  admin: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  userId: string,
+  bookingId: string,
+  title: string,
+  clientName: string,
+  clientEmail: string,
+  clientPhone: string,
+  startsAt: Date,
+  meetLink: string,
+) {
+  const contact = await findOrCreateContact(
+    admin,
+    accountId,
+    userId,
+    clientName,
+    clientEmail,
+    clientPhone,
+  );
+  if (!contact) return { contactId: null, dealId: null };
+
+  const { data: existingDealLink } = await admin
+    .from("calendar_bookings")
+    .select("pipeline_deal_id")
+    .eq("id", bookingId)
+    .maybeSingle();
+
+  if (existingDealLink?.pipeline_deal_id) {
+    return { contactId: contact.id, dealId: existingDealLink.pipeline_deal_id };
+  }
+
+  const { data: pipeline, error: pipelineError } = await admin
+    .from("pipelines")
+    .select("id, name")
+    .eq("account_id", accountId)
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();
+
+  if (pipelineError) throw new Error(pipelineError.message);
+  if (!pipeline) return { contactId: contact.id, dealId: null };
+
+  const { data: stages, error: stageError } = await admin
+    .from("pipeline_stages")
+    .select("id, name, position")
+    .eq("pipeline_id", pipeline.id)
+    .order("position");
+
+  if (stageError) throw new Error(stageError.message);
+
+  let meetingStage =
+    stages?.find((stage) =>
+      /meeting|appointment|scheduled/i.test(stage.name),
+    ) ?? stages?.find((stage) => /new lead|new/i.test(stage.name));
+
+  if (!meetingStage) {
+    const nextPosition =
+      (stages ?? []).reduce((max, stage) => Math.max(max, stage.position ?? 0), 0) + 1;
+    const { data: createdStage, error: createStageError } = await admin
+      .from("pipeline_stages")
+      .insert({
+        pipeline_id: pipeline.id,
+        name: "Meeting Booked",
+        position: nextPosition,
+        color: "#22c55e",
+      })
+      .select("id, name, position")
+      .single();
+
+    if (createStageError || !createdStage) {
+      throw new Error(
+        createStageError?.message || "Could not create the Meeting Booked stage.",
+      );
+    }
+    meetingStage = createdStage;
+  }
+
+  const dealTitle = clientName
+    ? `Meeting — ${clientName}`
+    : title || "Meeting";
+
+  const notes = [
+    "Automatically created from Calendar.",
+    clientEmail ? `Email: ${clientEmail}` : "",
+    clientPhone ? `WhatsApp: ${clientPhone}` : "",
+    `Meeting: ${startsAt.toISOString()}`,
+    `Google Meet: ${meetLink}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const { data: deal, error: dealError } = await admin
+    .from("deals")
+    .insert({
+      account_id: accountId,
+      user_id: userId,
+      pipeline_id: pipeline.id,
+      stage_id: meetingStage.id,
+      contact_id: contact.id,
+      title: dealTitle,
+      value: 0,
+      currency: "INR",
+      notes,
+      expected_close_date: startsAt.toISOString().slice(0, 10),
+      status: "open",
+    })
+    .select("id")
+    .single();
+
+  if (dealError) {
+    // A concurrent retry can reach the same booking. In that case we
+    // leave the booking without a link rather than manufacturing duplicates.
+    console.error("[calendar/book] pipeline deal creation failed:", dealError.message);
+    return { contactId: contact.id, dealId: null };
+  }
+
+  await admin
+    .from("calendar_bookings")
+    .update({
+      contact_id: contact.id,
+      pipeline_deal_id: deal.id,
+    })
+    .eq("id", bookingId);
+
+  return { contactId: contact.id, dealId: deal.id };
+}
+
 
 function formatReminder(
   name: string,
@@ -54,6 +235,8 @@ export async function POST(request: Request) {
     const endsAt = cleanText(body.ends_at, 100);
     const timezone = cleanText(body.timezone, 80) || "Asia/Kolkata";
     const sendWhatsapp = body.send_whatsapp !== false;
+    const reminder24h = body.reminder_24h !== false;
+    const reminder1h = body.reminder_1h !== false;
 
     if (!title || !startsAt || !endsAt) {
       return NextResponse.json(
@@ -191,6 +374,55 @@ export async function POST(request: Request) {
       );
     }
 
+    let pipelineSync: { contactId: string | null; dealId: string | null } = {
+      contactId: null,
+      dealId: null,
+    };
+
+    try {
+      pipelineSync = await syncBookingToPipeline(
+        admin,
+        ctx.accountId,
+        ctx.userId,
+        booking.id,
+        title,
+        clientName,
+        clientEmail,
+        clientPhone,
+        start,
+        meetLink,
+      );
+    } catch (error) {
+      console.error("[calendar/book] pipeline sync failed:", error);
+    }
+
+    const reminderRows = [24 * 60, 60]
+      .filter((offset) => (offset === 24 * 60 ? reminder24h : reminder1h))
+      .map((offset) => ({
+        account_id: ctx.accountId,
+        booking_id: booking.id,
+        contact_id: pipelineSync.contactId,
+        channel: "whatsapp",
+        offset_minutes: offset,
+        remind_at: new Date(
+          start.getTime() - offset * 60 * 1000,
+        ).toISOString(),
+        status: "pending",
+      }))
+      .filter((row) => new Date(row.remind_at).getTime() > Date.now());
+
+    if (reminderRows.length > 0 && sendWhatsapp && clientPhone) {
+      const { error: reminderError } = await admin
+        .from("calendar_reminders")
+        .upsert(reminderRows, {
+          onConflict: "booking_id,channel,offset_minutes",
+        });
+
+      if (reminderError) {
+        console.error("[calendar/book] reminder scheduling failed:", reminderError.message);
+      }
+    }
+
     let whatsappSent = false;
     let whatsappError: string | null = null;
     let whatsappMessageId: string | null = null;
@@ -247,9 +479,15 @@ export async function POST(request: Request) {
       success: true,
       booking: {
         ...booking,
+        contact_id: pipelineSync.contactId,
+        pipeline_deal_id: pipelineSync.dealId,
         whatsapp_sent: whatsappSent,
         whatsapp_message_id: whatsappMessageId,
         whatsapp_error: whatsappError,
+      },
+      pipeline: {
+        synced: Boolean(pipelineSync.dealId),
+        dealId: pipelineSync.dealId,
       },
       clientReminder: formatReminder(
         clientName,
