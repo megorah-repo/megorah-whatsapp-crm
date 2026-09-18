@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface RateLimitOptions {
   limit: number;
@@ -133,6 +134,49 @@ export function registerAuthFailure(
     reset: Math.max(entry.resetAt, entry.blockedUntil),
     limit,
     retryAfterMs: entry.blockedUntil - now,
+  };
+}
+
+/**
+ * Horizontally-scaled limiter backed by the Supabase/Postgres bucket table.
+ * Falls back to the local limiter only when the distributed backend is
+ * unavailable, so a database outage does not turn every API request into
+ * an automatic 500. Callers that require a hard distributed guarantee
+ * should keep the migration 040 prerequisite enforced at deploy time.
+ */
+export async function checkDistributedRateLimit(
+  db: SupabaseClient,
+  key: string,
+  { limit, windowMs }: RateLimitOptions,
+): Promise<RateLimitResult> {
+  const { data, error } = await db.rpc("consume_rate_limit", {
+    p_bucket_key: key,
+    p_limit: limit,
+    p_window_seconds: Math.max(1, Math.ceil(windowMs / 1000)),
+  });
+
+  if (error || !data || data.length === 0) {
+    console.error("[rate-limit] distributed limiter unavailable; using local fallback:", error);
+    return checkRateLimit(key, { limit, windowMs });
+  }
+
+  const row = data[0] as {
+    allowed: boolean;
+    remaining: number;
+    reset_at: string;
+  };
+  const reset = new Date(row.reset_at).getTime();
+  if (!Number.isFinite(reset)) {
+    console.error("[rate-limit] distributed limiter returned an invalid reset_at; using local fallback");
+    return checkRateLimit(key, { limit, windowMs });
+  }
+
+  return {
+    success: Boolean(row.allowed),
+    remaining: Math.max(0, Number(row.remaining) || 0),
+    reset,
+    limit,
+    retryAfterMs: row.allowed ? undefined : Math.max(0, reset - Date.now()),
   };
 }
 
