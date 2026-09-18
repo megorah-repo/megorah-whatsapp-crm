@@ -132,6 +132,24 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => supabaseMock),
 }))
 
+vi.mock('@/lib/whatsapp/outbound-idempotency', () => ({
+  prepareOutboundMessage: vi.fn(async () => ({
+    idempotencyKey: 'test-route-key',
+    fingerprint: 'f'.repeat(64),
+    messageId: 'msg-outbound',
+    existingStatus: null,
+    whatsappMessageId: null,
+    errorMessage: null,
+    shouldSend: true,
+  })),
+  markOutboundSent: vi.fn(),
+  markOutboundFailed: vi.fn(),
+  OutboundIdempotencyError: class extends Error {
+    code = 'idempotency_error'
+    status = 409
+  },
+}))
+
 vi.mock('@/lib/flows/admin-client', () => ({
   supabaseAdmin: () => ({
     from: () => {
