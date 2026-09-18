@@ -13,23 +13,27 @@ function env(name: string) {
   return value;
 }
 
-export function googleCalendarRedirectUri() {
+export function googleCalendarRedirectUri(fallbackOrigin?: string) {
   const explicit = process.env.GOOGLE_CALENDAR_REDIRECT_URI?.trim();
   if (explicit) return explicit;
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "");
-  if (!siteUrl) {
+  const origin = siteUrl || fallbackOrigin?.trim().replace(/\/$/, "");
+  if (!origin) {
     throw new Error(
       "Set GOOGLE_CALENDAR_REDIRECT_URI or NEXT_PUBLIC_SITE_URL before connecting Google Calendar.",
     );
   }
-  return `${siteUrl}/api/calendar/google/callback`;
+  return origin + "/api/calendar/google/callback";
 }
 
-export function buildGoogleCalendarAuthUrl(state: string) {
+export function buildGoogleCalendarAuthUrl(
+  state: string,
+  fallbackOrigin?: string,
+) {
   const params = new URLSearchParams({
     client_id: env("GOOGLE_CALENDAR_CLIENT_ID"),
-    redirect_uri: googleCalendarRedirectUri(),
+    redirect_uri: googleCalendarRedirectUri(fallbackOrigin),
     response_type: "code",
     access_type: "offline",
     prompt: "consent",
@@ -40,12 +44,12 @@ export function buildGoogleCalendarAuthUrl(state: string) {
   return `${GOOGLE_AUTH_URL}?${params.toString()}`;
 }
 
-export async function exchangeGoogleCode(code: string) {
+export async function exchangeGoogleCode(\n  code: string,\n  fallbackOrigin?: string,\n) {
   const body = new URLSearchParams({
     code,
     client_id: env("GOOGLE_CALENDAR_CLIENT_ID"),
     client_secret: env("GOOGLE_CALENDAR_CLIENT_SECRET"),
-    redirect_uri: googleCalendarRedirectUri(),
+    redirect_uri: googleCalendarRedirectUri(fallbackOrigin),
     grant_type: "authorization_code",
   });
 
