@@ -89,6 +89,37 @@ BEGIN
     RAISE EXCEPTION 'public.consume_rate_limit is missing — distributed rate limiting is unavailable';
   END IF;
 
+  -- Google Calendar booking layer (044).
+  IF to_regclass('public.google_calendar_connections') IS NULL THEN
+    RAISE EXCEPTION 'public.google_calendar_connections is missing — Google Calendar integration is unavailable';
+  END IF;
+
+  IF to_regclass('public.calendar_bookings') IS NULL THEN
+    RAISE EXCEPTION 'public.calendar_bookings is missing — calendar booking records are unavailable';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'google_calendar_connections'
+      AND column_name IN ('account_id', 'refresh_token', 'status')
+    GROUP BY table_schema, table_name
+    HAVING COUNT(*) = 3
+  ) THEN
+    RAISE EXCEPTION 'google_calendar_connections critical columns are missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'calendar_bookings'
+      AND column_name IN ('account_id', 'google_event_id', 'google_meet_link', 'starts_at', 'ends_at')
+    GROUP BY table_schema, table_name
+    HAVING COUNT(*) = 5
+  ) THEN
+    RAISE EXCEPTION 'calendar_bookings critical columns are missing';
+  END IF;
+
   RAISE NOTICE 'schema verification passed';
 END
 $$;
