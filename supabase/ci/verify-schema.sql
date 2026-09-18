@@ -42,6 +42,53 @@ BEGIN
     RAISE EXCEPTION 'public.accounts is missing — migration 017 did not apply';
   END IF;
 
+  -- Critical tenancy columns and the distributed API rate-limit backend.
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles'
+      AND column_name IN ('account_id', 'account_role')
+    GROUP BY table_schema, table_name
+    HAVING COUNT(*) = 2
+  ) THEN
+    RAISE EXCEPTION 'profiles account columns are missing — account sharing is incomplete';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'pipelines'
+      AND column_name = 'account_id'
+  ) THEN
+    RAISE EXCEPTION 'pipelines.account_id is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'automations'
+      AND column_name = 'account_id'
+  ) THEN
+    RAISE EXCEPTION 'automations.account_id is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'flows'
+      AND column_name = 'account_id'
+  ) THEN
+    RAISE EXCEPTION 'flows.account_id is missing';
+  END IF;
+
+  IF to_regclass('public.rate_limit_buckets') IS NULL THEN
+    RAISE EXCEPTION 'public.rate_limit_buckets is missing — distributed rate limiting is unavailable';
+  END IF;
+
+  IF to_regprocedure('public.consume_rate_limit(text,integer,integer)') IS NULL THEN
+    RAISE EXCEPTION 'public.consume_rate_limit is missing — distributed rate limiting is unavailable';
+  END IF;
+
   RAISE NOTICE 'schema verification passed';
 END
 $$;
