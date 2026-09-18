@@ -48,6 +48,12 @@ import {
   templateBodyParams,
   templateContentText,
 } from '@/lib/whatsapp/template-body';
+import {
+  markOutboundFailed,
+  markOutboundSent,
+  prepareOutboundMessage,
+  OutboundIdempotencyError,
+} from '@/lib/whatsapp/outbound-idempotency';
 
 export const MEDIA_KINDS = ['image', 'video', 'document', 'audio'] as const;
 export const VALID_MESSAGE_TYPES = [
