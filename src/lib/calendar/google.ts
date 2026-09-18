@@ -1,0 +1,147 @@
+import { decrypt, encrypt } from "@/lib/whatsapp/encryption";
+
+const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
+const CALENDAR_API = "https://www.googleapis.com/calendar/v3";
+
+const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+
+function env(name: string) {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`Missing environment variable ${name}`);
+  return value;
+}
+
+export function googleCalendarRedirectUri() {
+  return env("GOOGLE_CALENDAR_REDIRECT_URI");
+}
+
+export function buildGoogleCalendarAuthUrl(state: string) {
+  const params = new URLSearchParams({
+    client_id: env("GOOGLE_CALENDAR_CLIENT_ID"),
+    redirect_uri: googleCalendarRedirectUri(),
+    response_type: "code",
+    access_type: "offline",
+    prompt: "consent",
+    include_granted_scopes: "true",
+    state,
+    scope: ["openid", "email", CALENDAR_SCOPE].join(" "),
+  });
+  return `${GOOGLE_AUTH_URL}?${params.toString()}`;
+}
+
+export async function exchangeGoogleCode(code: string) {
+  const body = new URLSearchParams({
+    code,
+    client_id: env("GOOGLE_CALENDAR_CLIENT_ID"),
+    client_secret: env("GOOGLE_CALENDAR_CLIENT_SECRET"),
+    redirect_uri: googleCalendarRedirectUri(),
+    grant_type: "authorization_code",
+  });
+
+  const response = await fetch(GOOGLE_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+    cache: "no-store",
+  });
+
+  const data = (await response.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    scope?: string;
+    expires_in?: number;
+    error?: string;
+    error_description?: string;
+  };
+
+  if (!response.ok || !data.access_token) {
+    throw new Error(
+      data.error_description || data.error || "Google OAuth token exchange failed",
+    );
+  }
+
+  return data;
+}
+
+export async function refreshGoogleAccessToken(refreshToken: string) {
+  const body = new URLSearchParams({
+    client_id: env("GOOGLE_CALENDAR_CLIENT_ID"),
+    client_secret: env("GOOGLE_CALENDAR_CLIENT_SECRET"),
+    refresh_token: decrypt(refreshToken),
+    grant_type: "refresh_token",
+  });
+
+  const response = await fetch(GOOGLE_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+    cache: "no-store",
+  });
+
+  const data = (await response.json()) as {
+    access_token?: string;
+    expires_in?: number;
+    error?: string;
+    error_description?: string;
+  };
+
+  if (!response.ok || !data.access_token) {
+    throw new Error(
+      data.error_description || data.error || "Google Calendar token refresh failed",
+    );
+  }
+
+  return data.access_token;
+}
+
+export async function googleUserEmail(accessToken: string) {
+  const response = await fetch(GOOGLE_USERINFO_URL, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+  if (!response.ok) return null;
+  const data = (await response.json()) as { email?: string };
+  return data.email ?? null;
+}
+
+export function encryptGoogleRefreshToken(refreshToken: string) {
+  return encrypt(refreshToken);
+}
+
+export async function googleCalendarRequest<T>(
+  accessToken: string,
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const response = await fetch(`${CALENDAR_API}${path}`, {
+    ...init,
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      ...(init?.headers ?? {}),
+    },
+    cache: "no-store",
+  });
+
+  const data = (await response.json().catch(() => null)) as
+    | T
+    | { error?: { message?: string } }
+    | null;
+
+  if (!response.ok) {
+    const message =
+      typeof data === "object" &&
+      data &&
+      "error" in data &&
+      data.error &&
+      typeof data.error === "object"
+        ? data.error.message
+        : undefined;
+    throw new Error(message || `Google Calendar request failed (${response.status})`);
+  }
+
+  return data as T;
+}
