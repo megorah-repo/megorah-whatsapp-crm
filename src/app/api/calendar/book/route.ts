@@ -131,14 +131,35 @@ export async function POST(request: Request) {
       },
     );
 
-    const meetLink =
+    let meetLink =
       event.conferenceData?.entryPoints?.find(
         (point) => point.entryPointType === "video",
       )?.uri ?? null;
 
+    // Google may return conferenceData asynchronously with a pending
+    // status. Poll the event briefly so a valid booking is not failed
+    // simply because Meet generation needs another moment.
+    if (!meetLink) {
+      for (let attempt = 0; attempt < 5 && !meetLink; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const latest = await googleCalendarRequest<{
+          conferenceData?: {
+            entryPoints?: Array<{ entryPointType?: string; uri?: string }>;
+          };
+        }>(
+          accessToken,
+          `/calendars/${encodeURIComponent(connection.calendar_id)}/events/${encodeURIComponent(event.id)}`,
+        );
+        meetLink =
+          latest.conferenceData?.entryPoints?.find(
+            (point) => point.entryPointType === "video",
+          )?.uri ?? null;
+      }
+    }
+
     if (!meetLink) {
       throw new Error(
-        "Google Calendar created the event but did not return a Google Meet link.",
+        "Google Calendar created the event, but Google Meet generation is still pending. Refresh the Calendar panel in a moment.",
       );
     }
 
