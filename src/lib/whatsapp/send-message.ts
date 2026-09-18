@@ -415,7 +415,9 @@ export async function sendMessageToConversation(
           )
         : (contentText ?? null);
 
-  const outbound = await prepareOutboundMessage({
+  let outbound: Awaited<ReturnType<typeof prepareOutboundMessage>>;
+  try {
+    outbound = await prepareOutboundMessage({
     accountId,
     idempotencyKey,
     conversationId,
@@ -440,6 +442,12 @@ export async function sendMessageToConversation(
       replyToMessageId: replyToMessageId ?? null,
     },
   });
+  } catch (err) {
+    if (err instanceof OutboundIdempotencyError) {
+      throw new SendMessageError(err.code, err.message, err.status);
+    }
+    throw err;
+  }
 
   if (!outbound.shouldSend) {
     if (outbound.existingStatus === 'sent' && outbound.whatsappMessageId) {
