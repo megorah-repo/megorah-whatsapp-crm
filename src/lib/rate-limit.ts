@@ -166,12 +166,13 @@ export async function checkDistributedRateLimit(
     return checkRateLimit(key, { limit, windowMs });
   }
 
-  if (error || !data || (Array.isArray(data) && data.length === 0)) {
+  const rows = Array.isArray(data) ? data : [];
+  if (error || rows.length === 0) {
     console.error("[rate-limit] distributed limiter unavailable; using local fallback:", error);
     return checkRateLimit(key, { limit, windowMs });
   }
 
-  const row = data[0] as {
+  const row = rows[0] as {
     allowed: boolean;
     remaining: number;
     reset_at: string;
