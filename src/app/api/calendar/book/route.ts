@@ -31,19 +31,17 @@ async function findOrCreateContact(
   clientPhone: string,
 ) {
   const normalized = normalizePhone(clientPhone);
-  let query = admin
+  // The CRM contact model requires a WhatsApp phone number. A calendar
+  // meeting can still be created with email-only, but it cannot be placed
+  // into the WhatsApp-centric sales pipeline without a phone contact.
+  if (!normalized) return null;
+
+  const query = admin
     .from("contacts")
     .select("id, name, email, phone, phone_normalized")
     .eq("account_id", accountId)
+    .eq("phone_normalized", normalized)
     .limit(1);
-
-  if (normalized) {
-    query = query.eq("phone_normalized", normalized);
-  } else if (clientEmail) {
-    query = query.eq("email", clientEmail);
-  } else {
-    return null;
-  }
 
   const { data: existing, error } = await query.maybeSingle();
   if (error && !String(error.message).includes("phone_normalized")) {
