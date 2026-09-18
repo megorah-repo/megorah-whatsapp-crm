@@ -23,7 +23,7 @@ export default function CalendarPage() {
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored) setBookingLink(stored);
+      if (stored) queueMicrotask(() => setBookingLink(stored));
     } catch {
       // Storage can be disabled by the browser; the page remains usable.
     }
