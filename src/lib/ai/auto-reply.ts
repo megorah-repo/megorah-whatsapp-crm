@@ -18,6 +18,7 @@ interface DispatchArgs {
   /** The account's WhatsApp config owner, used for the outbound send's
    *  audit columns (mirrors how the flow runner passes it through). */
   configOwnerUserId: string
+  inboundMessageId?: string
 }
 
 /**
@@ -42,7 +43,7 @@ interface DispatchArgs {
 export async function dispatchInboundToAiReply(
   args: DispatchArgs,
 ): Promise<void> {
-  const { accountId, conversationId, contactId, configOwnerUserId } = args
+  const { accountId, conversationId, contactId, configOwnerUserId, inboundMessageId } = args
 
   try {
     const db = supabaseAdmin()
@@ -186,6 +187,7 @@ export async function dispatchInboundToAiReply(
       contactId,
       text,
       aiGenerated: true,
+      idempotencyKey: `ai:${accountId}:${inboundMessageId ?? conversationId}`,
     })
   } catch (err) {
     console.error('[ai auto-reply] dispatch failed:', err)

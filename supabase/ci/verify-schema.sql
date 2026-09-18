@@ -89,6 +89,37 @@ BEGIN
     RAISE EXCEPTION 'public.consume_rate_limit is missing — distributed rate limiting is unavailable';
   END IF;
 
+  IF to_regclass('public.outbound_message_keys') IS NULL THEN
+    RAISE EXCEPTION 'public.outbound_message_keys is missing — outbound idempotency is unavailable';
+  END IF;
+
+  IF to_regclass('public.whatsapp_webhook_jobs') IS NULL THEN
+    RAISE EXCEPTION 'public.whatsapp_webhook_jobs is missing — durable webhook processing is unavailable';
+  END IF;
+
+  IF to_regprocedure('public.claim_whatsapp_webhook_jobs(uuid,integer)') IS NULL THEN
+    RAISE EXCEPTION 'public.claim_whatsapp_webhook_jobs is missing — durable webhook processing is unavailable';
+  END IF;
+
+  IF to_regprocedure('public.complete_whatsapp_webhook_job(uuid,uuid)') IS NULL THEN
+    RAISE EXCEPTION 'public.complete_whatsapp_webhook_job is missing — durable webhook completion is unavailable';
+  END IF;
+
+  IF to_regprocedure('public.fail_whatsapp_webhook_job(uuid,uuid,text,boolean,timestamptz)') IS NULL THEN
+    RAISE EXCEPTION 'public.fail_whatsapp_webhook_job is missing — durable webhook retries are unavailable';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'messages'
+      AND column_name IN ('inbound_persisted_at', 'inbound_effects_processed_at', 'inbound_is_first')
+    GROUP BY table_schema, table_name
+    HAVING COUNT(*) = 3
+  ) THEN
+    RAISE EXCEPTION 'messages inbound reliability columns are missing';
+  END IF;
+
   RAISE NOTICE 'schema verification passed';
 END
 $$;

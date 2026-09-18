@@ -1,4 +1,5 @@
-import { NextResponse, after } from 'next/server'
+import { NextResponse } from 'next/server'
+import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
@@ -201,32 +202,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  // Process AFTER the response so we ack Meta within their ~20s timeout
-  // (a slow ack triggers Meta retries + duplicate inserts), while still
-  // guaranteeing the work runs to completion.
-  //
-  // This MUST use `after()` rather than a detached `processWebhook(body)`
-  // promise: on serverless platforms (we run on Vercel) the function can
-  // be frozen or terminated the moment the response is sent, so a floating
-  // promise's DB writes are not guaranteed to finish. That dropped a
-  // non-deterministic *subset* of inbound messages — contacts/conversations
-  // were created but the message insert never landed, leaving conversations
-  // that show in the inbox with an empty thread, and no logs to explain it
-  // (see issue #301). `after()` hands the callback to the runtime, which
-  // keeps the function alive until it resolves (within the route's
-  // maxDuration).
-  after(async () => {
-    try {
-      await processWebhook(body)
-    } catch (error) {
-      console.error('Error processing webhook:', error)
-    }
-  })
+  // Durable ACK boundary: persist the verified event before responding.
+  // Meta may retry the same payload, so the body hash is the durable
+  // dedupe key. A database outage returns 503 so Meta retries rather than
+  // silently losing the event.
+  const dedupeKey = 'meta:' + createHash('sha256').update(rawBody).digest('hex')
+  const { error: queueError } = await supabaseAdmin()
+    .from('whatsapp_webhook_jobs')
+    .insert({
+      dedupe_key: dedupeKey,
+      payload: body,
+      status: 'pending',
+    })
+
+  if (queueError && queueError.code !== '23505') {
+    console.error('[webhook] failed to persist durable job:', queueError)
+    return NextResponse.json({ error: 'Webhook queue unavailable' }, { status: 503 })
+  }
 
   return NextResponse.json({ status: 'received' }, { status: 200 })
 }
 
-async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
+export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
   if (!body.entry) return
 
   for (const entry of body.entry) {
@@ -877,6 +874,7 @@ async function processMessage(
       conversationId: conversation.id,
       contactId: contactRecord.id,
       configOwnerUserId,
+      inboundMessageId: message.id
     })
   }
 

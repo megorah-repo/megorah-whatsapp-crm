@@ -16,6 +16,7 @@ import {
   isRecipientNotAllowedError,
 } from '@/lib/whatsapp/phone-utils'
 import { supabaseAdmin } from './admin-client'
+import { markOutboundFailed, markOutboundSent, prepareOutboundMessage } from '@/lib/whatsapp/outbound-idempotency'
 
 // ------------------------------------------------------------
 // Flows-side Meta sender (interactive variants).
@@ -48,6 +49,7 @@ interface SendTextEngineArgs {
    *  badges it as an AI reply. Only the auto-reply bot sets this;
    *  deterministic Flow/automation sends leave it false. */
   aiGenerated?: boolean
+  idempotencyKey?: string
 }
 
 /**
@@ -93,6 +95,27 @@ export async function engineSendText(
 
   const accessToken = decrypt(config.access_token)
 
+  const outbound = await prepareOutboundMessage({
+    accountId: args.accountId,
+    idempotencyKey: args.idempotencyKey,
+    conversationId: args.conversationId,
+    senderType: 'bot',
+    contentType: 'text',
+    contentText: args.text,
+    fingerprintPayload: {
+      conversationId: args.conversationId,
+      kind: 'text',
+      text: args.text,
+      aiGenerated: args.aiGenerated ?? false,
+    },
+  })
+  if (!outbound.shouldSend) {
+    if (outbound.existingStatus === 'sent' && outbound.whatsappMessageId) {
+      return { whatsapp_message_id: outbound.whatsappMessageId }
+    }
+    throw new Error('outbound send already in progress for this idempotency key')
+  }
+
   const attempt = async (phone: string): Promise<string> => {
     const r = await sendTextMessage({
       phoneNumberId: config.phone_number_id,
@@ -115,28 +138,29 @@ export async function engineSendText(
       break
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (!isRecipientNotAllowedError(msg)) throw err
+      if (!isRecipientNotAllowedError(msg)) {
+          await markOutboundFailed(args.accountId, outbound.idempotencyKey, msg, outbound.messageId)
+          throw err
+        }
       lastError = err
     }
   }
-  if (lastError) throw lastError
+  if (lastError) {
+    const message = lastError instanceof Error ? lastError.message : String(lastError)
+    await markOutboundFailed(args.accountId, outbound.idempotencyKey, message, outbound.messageId)
+    throw lastError
+  }
 
   if (workingPhone !== sanitized) {
     await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
   }
 
-  const { error: msgErr } = await db.from('messages').insert({
-    conversation_id: args.conversationId,
-    sender_type: 'bot',
-    content_type: 'text',
-    content_text: args.text,
-    message_id: waMessageId,
-    status: 'sent',
-    ai_generated: args.aiGenerated ?? false,
-  })
-  if (msgErr) {
-    throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
-  }
+  await markOutboundSent(
+    args.accountId,
+    outbound.idempotencyKey,
+    outbound.messageId,
+    waMessageId,
+  )
 
   await db
     .from('conversations')
@@ -161,6 +185,7 @@ interface SendMediaEngineArgs {
   caption?: string
   /** Document-only; ignored by Meta for image/video. */
   filename?: string
+  idempotencyKey?: string
 }
 
 /**
@@ -203,6 +228,29 @@ export async function engineSendMedia(
 
   const accessToken = decrypt(config.access_token)
 
+  const outbound = await prepareOutboundMessage({
+    accountId: args.accountId,
+    idempotencyKey: args.idempotencyKey,
+    conversationId: args.conversationId,
+    senderType: 'bot',
+    contentType: args.kind,
+    contentText: args.caption ?? null,
+    mediaUrl: args.link,
+    fingerprintPayload: {
+      conversationId: args.conversationId,
+      kind: args.kind,
+      link: args.link,
+      caption: args.caption ?? null,
+      filename: args.filename ?? null,
+    },
+  })
+  if (!outbound.shouldSend) {
+    if (outbound.existingStatus === 'sent' && outbound.whatsappMessageId) {
+      return { whatsapp_message_id: outbound.whatsappMessageId }
+    }
+    throw new Error('outbound send already in progress for this idempotency key')
+  }
+
   const attempt = async (phone: string): Promise<string> => {
     const r = await sendMediaMessage({
       phoneNumberId: config.phone_number_id,
@@ -232,7 +280,11 @@ export async function engineSendMedia(
       lastError = err
     }
   }
-  if (lastError) throw lastError
+  if (lastError) {
+    const message = lastError instanceof Error ? lastError.message : String(lastError)
+    await markOutboundFailed(args.accountId, outbound.idempotencyKey, message, outbound.messageId)
+    throw lastError
+  }
 
   if (workingPhone !== sanitized) {
     await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
@@ -243,17 +295,12 @@ export async function engineSendMedia(
   // content_text carries the caption (or empty) so the conversation
   // list preview shows something meaningful when the user glances at it.
   const preview = args.caption?.trim() || `[${args.kind}]`
-  const { error: msgErr } = await db.from('messages').insert({
-    conversation_id: args.conversationId,
-    sender_type: 'bot',
-    content_type: args.kind,
-    content_text: args.caption ?? null,
-    message_id: waMessageId,
-    status: 'sent',
-  })
-  if (msgErr) {
-    throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
-  }
+  await markOutboundSent(
+    args.accountId,
+    outbound.idempotencyKey,
+    outbound.messageId,
+    waMessageId,
+  )
 
   await db
     .from('conversations')
@@ -276,6 +323,7 @@ interface SendInteractiveButtonsEngineArgs {
   buttons: InteractiveButton[]
   headerText?: string
   footerText?: string
+  idempotencyKey?: string
 }
 
 interface SendInteractiveListEngineArgs {
@@ -288,6 +336,7 @@ interface SendInteractiveListEngineArgs {
   sections: InteractiveListSection[]
   headerText?: string
   footerText?: string
+  idempotencyKey?: string
 }
 
 /**
@@ -355,6 +404,45 @@ async function sendInteractiveViaMeta(
 
   const accessToken = decrypt(config.access_token)
 
+  const interactivePayload: InteractiveMessagePayload =
+    input.kind === 'buttons'
+      ? {
+          kind: 'buttons',
+          body: input.bodyText,
+          header: input.headerText,
+          footer: input.footerText,
+          buttons: input.buttons,
+        }
+      : {
+          kind: 'list',
+          body: input.bodyText,
+          header: input.headerText,
+          footer: input.footerText,
+          button_label: input.buttonLabel,
+          sections: input.sections,
+        }
+
+  const outbound = await prepareOutboundMessage({
+    accountId: input.accountId,
+    idempotencyKey: input.idempotencyKey,
+    conversationId: input.conversationId,
+    senderType: 'bot',
+    contentType: 'interactive',
+    contentText: input.bodyText,
+    interactivePayload,
+    fingerprintPayload: {
+      conversationId: input.conversationId,
+      kind: input.kind,
+      payload: interactivePayload,
+    },
+  })
+  if (!outbound.shouldSend) {
+    if (outbound.existingStatus === 'sent' && outbound.whatsappMessageId) {
+      return { whatsapp_message_id: outbound.whatsappMessageId }
+    }
+    throw new Error('outbound send already in progress for this idempotency key')
+  }
+
   const attempt = async (phone: string): Promise<string> => {
     if (input.kind === 'buttons') {
       const r = await sendInteractiveButtons({
@@ -396,57 +484,29 @@ async function sendInteractiveViaMeta(
       break
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (!isRecipientNotAllowedError(msg)) throw err
+      if (!isRecipientNotAllowedError(msg)) {
+        await markOutboundFailed(input.accountId, outbound.idempotencyKey, msg, outbound.messageId)
+        throw err
+      }
       lastError = err
     }
   }
-  if (lastError) throw lastError
+  if (lastError) {
+    const message = lastError instanceof Error ? lastError.message : String(lastError)
+    await markOutboundFailed(input.accountId, outbound.idempotencyKey, message, outbound.messageId)
+    throw lastError
+  }
 
   if (workingPhone !== sanitized) {
     await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
   }
 
-  // Persist the bot's prompt to the messages table so it appears in
-  // the inbox. content_type='interactive' is supported as of
-  // migration 010; sender_type='bot' distinguishes flow sends from
-  // manual agent sends (the conversation list preview will pick up
-  // last_message_text as a sensible summary).
-  //
-  // We do NOT set interactive_reply_id here — that column is reserved
-  // for the customer's tap on this message, populated by the webhook
-  // when their reply arrives. We DO persist the structured payload so
-  // the inbox thread re-renders the buttons/rows the bot sent (round-
-  // trip), matching the composer + automation send paths.
-  const interactivePayload: InteractiveMessagePayload =
-    input.kind === 'buttons'
-      ? {
-          kind: 'buttons',
-          body: input.bodyText,
-          header: input.headerText,
-          footer: input.footerText,
-          buttons: input.buttons,
-        }
-      : {
-          kind: 'list',
-          body: input.bodyText,
-          header: input.headerText,
-          footer: input.footerText,
-          button_label: input.buttonLabel,
-          sections: input.sections,
-        }
-
-  const { error: msgErr } = await db.from('messages').insert({
-    conversation_id: input.conversationId,
-    sender_type: 'bot',
-    content_type: 'interactive',
-    content_text: input.bodyText,
-    interactive_payload: interactivePayload,
-    message_id: waMessageId,
-    status: 'sent',
-  })
-  if (msgErr) {
-    throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
-  }
+  await markOutboundSent(
+    input.accountId,
+    outbound.idempotencyKey,
+    outbound.messageId,
+    waMessageId,
+  )
 
   await db
     .from('conversations')

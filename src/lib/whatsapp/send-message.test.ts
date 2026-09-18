@@ -182,6 +182,26 @@ vi.mock('@/lib/whatsapp/encryption', () => ({
   isLegacyFormat: () => false,
 }));
 
+vi.mock('@/lib/whatsapp/outbound-idempotency', () => ({
+  prepareOutboundMessage: vi.fn(async (input: {
+    conversationId: string;
+  }) => ({
+    idempotencyKey: 'test-idempotency-key',
+    fingerprint: 'f'.repeat(64),
+    messageId: 'msg-outbound',
+    existingStatus: null,
+    whatsappMessageId: null,
+    errorMessage: null,
+    shouldSend: true,
+  })),
+  markOutboundSent: vi.fn(),
+  markOutboundFailed: vi.fn(),
+  OutboundIdempotencyError: class extends Error {
+    code = 'idempotency_error'
+    status = 409
+  },
+}))
+
 vi.mock('@/lib/flows/admin-client', () => ({
   // Only used for the best-effort "pause active flow run" write.
   supabaseAdmin: () => ({

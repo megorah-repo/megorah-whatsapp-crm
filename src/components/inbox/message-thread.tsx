@@ -486,7 +486,7 @@ export function MessageThread({
       try {
         const res = await fetch("/api/whatsapp/send", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
           body: JSON.stringify({
             conversation_id: conversation.id,
             message_type: "text",
@@ -550,7 +550,7 @@ export function MessageThread({
       try {
         const res = await fetch("/api/whatsapp/send", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
           body: JSON.stringify({
             conversation_id: conversation.id,
             message_type: payload.kind,
@@ -609,7 +609,7 @@ export function MessageThread({
       try {
         const res = await fetch("/api/whatsapp/send", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
           body: JSON.stringify({
             conversation_id: conversation.id,
             message_type: "interactive",
@@ -687,7 +687,7 @@ export function MessageThread({
       try {
         const res = await fetch("/api/whatsapp/send", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
           body: JSON.stringify({
             conversation_id: conversation.id,
             message_type: "template",

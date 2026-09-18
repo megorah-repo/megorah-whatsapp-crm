@@ -48,6 +48,12 @@ import {
   templateBodyParams,
   templateContentText,
 } from '@/lib/whatsapp/template-body';
+import {
+  markOutboundFailed,
+  markOutboundSent,
+  prepareOutboundMessage,
+  OutboundIdempotencyError,
+} from '@/lib/whatsapp/outbound-idempotency';
 
 export const MEDIA_KINDS = ['image', 'video', 'document', 'audio'] as const;
 export const VALID_MESSAGE_TYPES = [
@@ -88,6 +94,7 @@ export interface SendMessageParams {
   /** Structured payload for `messageType === 'interactive'`. */
   interactivePayload?: InteractiveMessagePayload | null;
   replyToMessageId?: string | null;
+  idempotencyKey?: string | null;
 }
 
 export interface SendMessageResult {
@@ -201,6 +208,7 @@ export async function sendMessageToConversation(
     templateMessageParams,
     interactivePayload,
     replyToMessageId,
+    idempotencyKey,
   } = params;
 
   if (!conversationId) {
@@ -402,9 +410,65 @@ export async function sendMessageToConversation(
     return result.messageId;
   };
 
-  // Send via Meta — retry across phone-number variants if Meta rejects
-  // with "recipient not in allowed list"; persist a working variant
-  // back to the contact so the next send goes straight through.
+  const persistedText =
+    messageType === 'interactive'
+      ? interactivePayload!.body
+      : messageType === 'template'
+        ? templateContentText(
+            templateRow,
+            templateBodyParams(templateParams, templateMessageParams),
+            contentText
+          )
+        : (contentText ?? null);
+
+  let outbound: Awaited<ReturnType<typeof prepareOutboundMessage>>;
+  try {
+    outbound = await prepareOutboundMessage({
+    accountId,
+    idempotencyKey,
+    conversationId,
+    senderType: 'agent',
+    contentType: messageType,
+    contentText: persistedText,
+    mediaUrl,
+    templateName,
+    interactivePayload,
+    replyToMessageId,
+    fingerprintPayload: {
+      conversationId,
+      messageType,
+      contentText: persistedText,
+      mediaUrl: mediaUrl ?? null,
+      filename: filename ?? null,
+      templateName: templateName ?? null,
+      templateLanguage: sendLanguage,
+      templateParams: templateParams ?? null,
+      templateMessageParams: templateMessageParams ?? null,
+      interactivePayload: interactivePayload ?? null,
+      replyToMessageId: replyToMessageId ?? null,
+    },
+  });
+  } catch (err) {
+    if (err instanceof OutboundIdempotencyError) {
+      throw new SendMessageError(err.code, err.message, err.status);
+    }
+    throw err;
+  }
+
+  if (!outbound.shouldSend) {
+    if (outbound.existingStatus === 'sent' && outbound.whatsappMessageId) {
+      return {
+        messageId: outbound.messageId,
+        whatsappMessageId: outbound.whatsappMessageId,
+      };
+    }
+    throw new SendMessageError(
+      'send_in_progress',
+      'This message is already being processed. Retry later with the same Idempotency-Key.',
+      409,
+    );
+  }
+
   let waMessageId = '';
   let workingPhone = sanitizedPhone;
   try {
@@ -434,6 +498,12 @@ export async function sendMessageToConversation(
     const message =
       err instanceof Error ? err.message : 'Unknown Meta API error';
     console.error('[send-message] Meta send failed for all variants:', message);
+    await markOutboundFailed(
+      accountId,
+      outbound.idempotencyKey,
+      message,
+      outbound.messageId,
+    );
     throw new SendMessageError('meta_error', `Meta API error: ${message}`, 502);
   }
 
@@ -447,53 +517,25 @@ export async function sendMessageToConversation(
       .eq('id', contact.id);
   }
 
-  // Persist the sent message. Field names MUST match the messages
-  // schema (see 001_initial_schema.sql).
-  // Interactive messages persist the body as content_text (so the
-  // conversation-list preview reads sensibly) plus the full structured
-  // payload so the thread can re-render the buttons / rows.
-  //
-  // Templates persist the *substituted* body. The composer pre-renders
-  // and posts it as contentText; every other caller (the public API,
-  // most importantly) sends none, and storing null there left the
-  // Inbox rendering an empty bubble — issue #483.
-  const persistedText =
-    messageType === 'interactive'
-      ? interactivePayload!.body
-      : messageType === 'template'
-        ? templateContentText(
-            templateRow,
-            templateBodyParams(templateParams, templateMessageParams),
-            contentText
-          )
-        : (contentText ?? null);
-
-  const { data: messageRecord, error: msgError } = await db
-    .from('messages')
-    .insert({
-      conversation_id: conversationId,
-      sender_type: 'agent',
-      content_type: messageType,
-      content_text: persistedText,
-      media_url: mediaUrl || null,
-      template_name: templateName || null,
-      interactive_payload:
-        messageType === 'interactive' ? interactivePayload : null,
-      message_id: waMessageId,
-      status: 'sent',
-      reply_to_message_id: replyToMessageId || null,
-    })
-    .select()
-    .single();
-
-  if (msgError) {
-    console.error('[send-message] error inserting sent message:', msgError);
+  try {
+    await markOutboundSent(
+      accountId,
+      outbound.idempotencyKey,
+      outbound.messageId,
+      waMessageId,
+    );
+  } catch (err) {
+    console.error('[send-message] outbound persistence finalization failed:', err);
     throw new SendMessageError(
       'db_error',
-      `Message sent to Meta but failed to save to DB: ${msgError.message}`,
-      500
+      err instanceof Error
+        ? err.message
+        : 'Message sent but local persistence could not be finalized.',
+      500,
     );
   }
+
+  const messageRecord = { id: outbound.messageId };
 
   const lastMessageText =
     messageType === 'interactive'
