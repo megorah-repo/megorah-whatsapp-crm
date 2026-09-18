@@ -17,7 +17,9 @@ export async function GET(request: Request) {
       maxAge: 600,
       path: "/api/calendar/google/callback",
     });
-    return NextResponse.redirect(\n      buildGoogleCalendarAuthUrl(state, new URL(request.url).origin),\n    );
+    return NextResponse.redirect(
+      buildGoogleCalendarAuthUrl(state, new URL(request.url).origin),
+    );
   } catch (error) {
     if (
       error instanceof Error &&
