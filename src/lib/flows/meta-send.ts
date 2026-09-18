@@ -501,20 +501,12 @@ async function sendInteractiveViaMeta(
     await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
   }
 
-  // The payload was prepared before the Meta call so the same idempotency key can
-  // safely replay the completed send without creating another local row.
-  const { error: msgErr } = await db.from('messages').insert({
-    conversation_id: input.conversationId,
-    sender_type: 'bot',
-    content_type: 'interactive',
-    content_text: input.bodyText,
-    interactive_payload: interactivePayload,
-    message_id: waMessageId,
-    status: 'sent',
-  })
-  if (msgErr) {
-    throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
-  }
+  await markOutboundSent(
+    input.accountId,
+    outbound.idempotencyKey,
+    outbound.messageId,
+    waMessageId,
+  )
 
   await db
     .from('conversations')
@@ -527,9 +519,3 @@ async function sendInteractiveViaMeta(
 
   return { whatsapp_message_id: waMessageId }
 }
-  await markOutboundSent(
-    input.accountId,
-    outbound.idempotencyKey,
-    outbound.messageId,
-    waMessageId,
-  )
