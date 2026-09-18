@@ -80,7 +80,7 @@ end;
 $$;
 
 revoke all on function public.consume_rate_limit(text, integer, integer) from public, anon, authenticated;
-grant execute on function public.consume_rate_limit(text, integer, integer) to anon, authenticated;
+grant execute on function public.consume_rate_limit(text, integer, integer) to anon, authenticated, service_role;
 
 -- Keep the limiter table from growing forever. Run this from pg_cron or a scheduled job.
 create or replace function public.prune_rate_limit_buckets(p_older_than_seconds integer default 172800)
