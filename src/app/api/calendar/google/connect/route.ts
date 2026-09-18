@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { buildGoogleCalendarAuthUrl } from "@/lib/calendar/google";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await requireRole("admin");
     const state = randomUUID();
@@ -17,7 +17,7 @@ export async function GET() {
       maxAge: 600,
       path: "/api/calendar/google/callback",
     });
-    return NextResponse.redirect(buildGoogleCalendarAuthUrl(state));
+    return NextResponse.redirect(\n      buildGoogleCalendarAuthUrl(state, new URL(request.url).origin),\n    );
   } catch (error) {
     return toErrorResponse(error);
   }
