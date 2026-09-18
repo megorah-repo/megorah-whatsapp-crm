@@ -6,6 +6,8 @@ const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 const CALENDAR_API = "https://www.googleapis.com/calendar/v3";
 
 const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+const CALENDAR_LIST_SCOPE =
+  "https://www.googleapis.com/auth/calendar.calendarlist.readonly";
 
 function env(name: string) {
   const value = process.env[name]?.trim();
@@ -39,7 +41,10 @@ export function buildGoogleCalendarAuthUrl(
     prompt: "consent",
     include_granted_scopes: "true",
     state,
-    scope: ["openid", "email", CALENDAR_SCOPE].join(" "),
+    scope: ["openid", "email", CALENDAR_SCOPE, CALENDAR_LIST_SCOPE].join(" "),
+    ...(process.env.GOOGLE_CALENDAR_LOGIN_HINT?.trim()
+      ? { login_hint: process.env.GOOGLE_CALENDAR_LOGIN_HINT.trim() }
+      : {}),
   });
   return `${GOOGLE_AUTH_URL}?${params.toString()}`;
 }
