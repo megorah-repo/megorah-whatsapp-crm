@@ -120,6 +120,25 @@ BEGIN
     RAISE EXCEPTION 'calendar_bookings critical columns are missing';
   END IF;
 
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'calendar_bookings'
+      AND column_name IN ('contact_id', 'pipeline_deal_id')
+    GROUP BY table_schema, table_name
+    HAVING COUNT(*) = 2
+  ) THEN
+    RAISE EXCEPTION 'calendar_bookings pipeline linkage columns are missing';
+  END IF;
+
+  IF to_regclass('public.calendar_reminders') IS NULL THEN
+    RAISE EXCEPTION 'public.calendar_reminders is missing — scheduled meeting reminders are unavailable';
+  END IF;
+
+  IF to_regprocedure('public.claim_calendar_reminders(uuid,integer)') IS NULL THEN
+    RAISE EXCEPTION 'public.claim_calendar_reminders is missing';
+  END IF;
+
   RAISE NOTICE 'schema verification passed';
 END
 $$;
