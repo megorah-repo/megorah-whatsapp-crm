@@ -43,8 +43,6 @@ interface CallingSettings {
   businessHoursOnly: boolean;
   maxCallMinutes: string;
   aiProvider: string;
-  aiApiKey: string;
-  aiModel: string;
 }
 
 const DEFAULTS: CallingSettings = {
@@ -61,8 +59,6 @@ const DEFAULTS: CallingSettings = {
   businessHoursOnly: true,
   maxCallMinutes: '12',
   aiProvider: 'google-gemini',
-  aiApiKey: '',
-  aiModel: 'gemini-3.6-flash',
 };
 
 const VOICES = [
@@ -73,14 +69,9 @@ const VOICES = [
 ] as const;
 
 const AI_PROVIDERS = [
-  { value: 'google-gemini', label: 'Google Gemini', hint: 'Free tier available' },
-  { value: 'openai', label: 'OpenAI', hint: 'API billing applies' },
-  { value: 'cloud-entropy', label: 'Cloud Entropy', hint: 'Existing provider' },
-] as const;
-
-const GEMINI_MODELS = [
-  { value: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
-  { value: 'gemini-3.6-flash-lite', label: 'Gemini 3.6 Flash-Lite' },
+  { value: 'openai', label: 'OpenAI', hint: 'Provider option' },
+  { value: 'anthropic', label: 'Anthropic', hint: 'Provider option' },
+  { value: 'google-gemini', label: 'Google Gemini', hint: 'Free test option' },
 ] as const;
 
 const LANGUAGES = [
@@ -301,10 +292,10 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                 AI provider
               </CardTitle>
               <CardDescription>
-                Choose the AI engine used by the voice agent. Google Gemini includes a free API tier for eligible models.
+                Select which AI provider the voice agent will use. This is a provider-selection UI only; no provider API is connected or called from this setting.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
+            <CardContent>
               <div className="space-y-2">
                 <Label>AI provider</Label>
                 <Select
@@ -326,48 +317,10 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="ai-api-key">Provider API key</Label>
-                <Input
-                  id="ai-api-key"
-                  type="password"
-                  value={settings.aiApiKey}
-                  onChange={(event) => update('aiApiKey', event.target.value)}
-                  placeholder={settings.aiProvider === 'google-gemini' ? 'Paste Gemini API key' : 'Paste provider API key'}
-                  disabled={disabled}
-                  autoComplete="off"
-                />
                 <p className="text-xs text-muted-foreground">
-                  For testing only. Do not paste production secrets into browser/local storage.
+                  Google Gemini is included as a free-test provider option. Actual provider/API connection can be added separately later.
                 </p>
               </div>
-
-              {settings.aiProvider === 'google-gemini' && (
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>Gemini model</Label>
-                  <Select
-                    value={settings.aiModel}
-                    onValueChange={(value) => update('aiModel', value ?? DEFAULTS.aiModel)}
-                    disabled={disabled}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {GEMINI_MODELS.map((model) => (
-                        <SelectItem key={model.value} value={model.value}>
-                          {model.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Google currently offers a Free Tier for eligible Gemini API models; quotas and availability are account/model dependent.
-                  </p>
-                </div>
-              )}
             </CardContent>
           </Card>
 
