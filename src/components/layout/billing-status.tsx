@@ -93,7 +93,7 @@ export function BillingStatus() {
       <div className={cn('flex h-8 items-center gap-2 rounded-full border px-2.5 text-xs font-medium', toneClass)}>
         <span className={cn('size-2 rounded-full', dotClass)} />
         <span className="whitespace-nowrap">
-          {daysLeft > 0 ? \`\${daysLeft} days left\` : 'Subscription expired'}
+          {daysLeft > 0 ? `${daysLeft} days left` : 'Subscription expired'}
         </span>
         <Button
           type="button"
