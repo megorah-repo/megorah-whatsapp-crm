@@ -42,6 +42,9 @@ interface CallingSettings {
   transferOnHandoff: boolean;
   businessHoursOnly: boolean;
   maxCallMinutes: string;
+  aiProvider: string;
+  aiApiKey: string;
+  aiModel: string;
 }
 
 const DEFAULTS: CallingSettings = {
@@ -57,6 +60,9 @@ const DEFAULTS: CallingSettings = {
   transferOnHandoff: true,
   businessHoursOnly: true,
   maxCallMinutes: '12',
+  aiProvider: 'google-gemini',
+  aiApiKey: '',
+  aiModel: 'gemini-3.6-flash',
 };
 
 const VOICES = [
@@ -64,6 +70,17 @@ const VOICES = [
   { value: 'professional-male', label: 'Professional Male', hint: 'Clear, confident' },
   { value: 'calm-female', label: 'Calm Female', hint: 'Soft, reassuring' },
   { value: 'neutral-male', label: 'Neutral Male', hint: 'Direct, balanced' },
+] as const;
+
+const AI_PROVIDERS = [
+  { value: 'google-gemini', label: 'Google Gemini', hint: 'Free tier available' },
+  { value: 'openai', label: 'OpenAI', hint: 'API billing applies' },
+  { value: 'cloud-entropy', label: 'Cloud Entropy', hint: 'Existing provider' },
+] as const;
+
+const GEMINI_MODELS = [
+  { value: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
+  { value: 'gemini-3.6-flash-lite', label: 'Gemini 3.6 Flash-Lite' },
 ] as const;
 
 const LANGUAGES = [
@@ -274,6 +291,83 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                   Store the number you plan to connect to your telephony provider.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Bot className="h-4 w-4 text-primary" />
+                AI provider
+              </CardTitle>
+              <CardDescription>
+                Choose the AI engine used by the voice agent. Google Gemini includes a free API tier for eligible models.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>AI provider</Label>
+                <Select
+                  value={settings.aiProvider}
+                  onValueChange={(value) => update('aiProvider', value ?? DEFAULTS.aiProvider)}
+                  disabled={disabled}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AI_PROVIDERS.map((provider) => (
+                      <SelectItem key={provider.value} value={provider.value}>
+                        <span className="flex items-center gap-2">
+                          <span>{provider.label}</span>
+                          <span className="text-xs text-muted-foreground">— {provider.hint}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ai-api-key">Provider API key</Label>
+                <Input
+                  id="ai-api-key"
+                  type="password"
+                  value={settings.aiApiKey}
+                  onChange={(event) => update('aiApiKey', event.target.value)}
+                  placeholder={settings.aiProvider === 'google-gemini' ? 'Paste Gemini API key' : 'Paste provider API key'}
+                  disabled={disabled}
+                  autoComplete="off"
+                />
+                <p className="text-xs text-muted-foreground">
+                  For testing only. Do not paste production secrets into browser/local storage.
+                </p>
+              </div>
+
+              {settings.aiProvider === 'google-gemini' && (
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Gemini model</Label>
+                  <Select
+                    value={settings.aiModel}
+                    onValueChange={(value) => update('aiModel', value ?? DEFAULTS.aiModel)}
+                    disabled={disabled}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GEMINI_MODELS.map((model) => (
+                        <SelectItem key={model.value} value={model.value}>
+                          {model.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Google currently offers a Free Tier for eligible Gemini API models; quotas and availability are account/model dependent.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
