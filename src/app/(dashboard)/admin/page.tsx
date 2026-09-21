@@ -151,7 +151,7 @@ export default function PlatformAdminPage() {
         </div>
         <div className="premium-panel p-5">
           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Expiring ≤ 5 days</div>
-          <div className="mt-2 text-3xl font-semibold">{accounts.filter((a) => daysLeft(a.subscription?.current_period_end ?? null) <= 5).length}</div>
+          <div className="mt-2 text-3xl font-semibold">{accounts.filter((a) => { const status = a.subscription?.status; const days = daysLeft(a.subscription?.current_period_end ?? null); return Boolean(status && status !== 'cancelled' && status !== 'expired' && days > 0 && days <= 5) }).length}</div>
         </div>
       </div>
 
