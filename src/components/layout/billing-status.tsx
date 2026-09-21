@@ -1,10 +1,10 @@
-'use client';
+'use client'
 
-import { useEffect, useMemo, useState } from 'react';
-import { CalendarClock, CreditCard, Plus, QrCode, Sparkles } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
-import { Button } from '@/components/ui/button';
+import { useEffect, useMemo, useState } from 'react'
+import { CalendarClock, CreditCard, Plus, QrCode, Sparkles } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { useAuth } from '@/hooks/use-auth'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -12,39 +12,39 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
-
-const PLAN_DAYS = 30;
+} from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 
 type SubscriptionRow = {
-  current_period_end: string | null;
-  status: 'trialing' | 'active' | 'past_due' | 'cancelled' | 'expired';
-};
+  current_period_end: string | null
+  status: 'trialing' | 'active' | 'past_due' | 'cancelled' | 'expired'
+}
 
 function getDaysLeft(end: string | null) {
-  if (!end) return 0;
-  return Math.max(0, Math.ceil((new Date(end).getTime() - Date.now()) / 86400000));
+  if (!end) return 0
+  return Math.max(0, Math.ceil((new Date(end).getTime() - Date.now()) / 86400000))
 }
 
 export function BillingStatus() {
-  const { accountId } = useAuth();
-  const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
-  const [tick, setTick] = useState(Date.now());
+  const { accountId } = useAuth()
+  const [subscription, setSubscription] = useState<SubscriptionRow | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [open, setOpen] = useState(false)
+  const [tick, setTick] = useState(Date.now())
 
   useEffect(() => {
-    const timer = window.setInterval(() => setTick(Date.now()), 60000);
-    return () => window.clearInterval(timer);
-  }, []);
+    const timer = window.setInterval(() => setTick(Date.now()), 60000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   useEffect(() => {
-    if (!accountId) return;
-    let cancelled = false;
+    if (!accountId) return
+
+    let cancelled = false
+
     const load = async () => {
-      setLoading(true);
-      const supabase = createClient();
+      setLoading(true)
+      const supabase = createClient()
       const { data } = await supabase
         .from('subscriptions')
         .select('current_period_end,status')
@@ -52,46 +52,74 @@ export function BillingStatus() {
         .in('status', ['active', 'trialing', 'past_due'])
         .order('current_period_end', { ascending: false })
         .limit(1)
-        .maybeSingle();
+        .maybeSingle()
+
       if (!cancelled) {
-        setSubscription(data ?? null);
-        setLoading(false);
+        setSubscription(data ?? null)
+        setLoading(false)
       }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, [accountId]);
+    }
+
+    void load()
+
+    return () => {
+      cancelled = true
+    }
+  }, [accountId])
 
   const daysLeft = useMemo(() => {
-    void tick;
-    return getDaysLeft(subscription?.current_period_end ?? null);
-  }, [subscription?.current_period_end, tick]);
+    void tick
+    return getDaysLeft(subscription?.current_period_end ?? null)
+  }, [subscription?.current_period_end, tick])
 
-  const tone = daysLeft <= 3 ? 'red' : daysLeft <= 7 ? 'yellow' : 'green';
+  // 30-day plan:
+  // 19–30 days left = green (roughly first 12 days)
+  // 6–18 days left = yellow (middle 12–13 days)
+  // 0–5 days left = red with increasingly fast attention pulse
+  const tone = daysLeft <= 5 ? 'red' : daysLeft <= 18 ? 'yellow' : 'green'
+
   const toneClass = {
     green: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
     yellow: 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300',
     red: 'border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300',
-  }[tone];
+  }[tone]
 
   const dotClass = {
     green: 'bg-emerald-500',
     yellow: 'bg-amber-500',
     red: 'bg-red-500',
-  }[tone];
+  }[tone]
+
+  const pulseDuration =
+    daysLeft <= 0
+      ? 0.45
+      : Math.max(0.55, Math.min(1.5, daysLeft * 0.3))
 
   if (loading) {
     return (
-      <div className="hidden h-8 min-w-[120px] items-center rounded-full border border-border bg-muted/40 px-3 text-xs text-muted-foreground sm:flex">
+      <div className="flex h-8 min-w-0 items-center rounded-full border border-border bg-muted/40 px-2.5 text-[11px] text-muted-foreground sm:text-xs">
         Subscription…
       </div>
-    );
+    )
   }
+
+  const attentionStyle =
+    tone === 'red'
+      ? { animationDuration: `${pulseDuration}s` }
+      : undefined
 
   return (
     <>
-      <div className={cn('flex h-8 items-center gap-2 rounded-full border px-2.5 text-xs font-medium', toneClass)}>
-        <span className={cn('size-2 rounded-full', dotClass)} />
+      <div
+        className={cn(
+          'flex h-8 min-w-0 items-center gap-1.5 rounded-full border px-2 text-[11px] font-medium sm:gap-2 sm:px-2.5 sm:text-xs',
+          toneClass,
+          tone === 'red' && 'animate-pulse',
+        )}
+        style={attentionStyle}
+        title="Subscription remaining"
+      >
+        <span className={cn('size-2 shrink-0 rounded-full', dotClass)} />
         <span className="whitespace-nowrap">
           {daysLeft > 0 ? `${daysLeft} days left` : 'Subscription expired'}
         </span>
@@ -99,7 +127,7 @@ export function BillingStatus() {
           type="button"
           size="icon-xs"
           variant="ghost"
-          className="ml-0.5 rounded-full"
+          className="ml-0 rounded-full"
           aria-label="Recharge subscription"
           onClick={() => setOpen(true)}
         >
@@ -153,5 +181,5 @@ export function BillingStatus() {
         </DialogContent>
       </Dialog>
     </>
-  );
+  )
 }
