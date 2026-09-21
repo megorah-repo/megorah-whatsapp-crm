@@ -108,6 +108,13 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
   const totalUnread = useTotalUnread();
   const unreadNotifications = useUnreadNotifications();
+  const platformAdminEmails = (process.env.NEXT_PUBLIC_PLATFORM_ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+  const isPlatformAdmin = Boolean(
+    profile?.email && platformAdminEmails.includes(profile.email.trim().toLowerCase()),
+  );
   const showAccountStrip =
     !profileLoading &&
     !!account?.name &&
@@ -253,6 +260,22 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 </li>
               );
             })}
+            {isPlatformAdmin ? (
+              <li>
+                <Link
+                  href="/admin"
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                    pathname === "/admin" || pathname.startsWith("/admin/")
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  <Shield className="h-4 w-4" />
+                  <span className="flex-1">Admin Panel</span>
+                </Link>
+              </li>
+            ) : null}
           </ul>
         </nav>
 
