@@ -49,7 +49,16 @@ export async function GET() {
       (owners ?? []).map((owner) => [owner.account_id, owner]),
     )
 
-    const subscriptionByAccount = new Map<string, (typeof subscriptions)[number]>()
+    type SubscriptionRecord = {
+      id: string
+      account_id: string
+      plan_id: string
+      status: string
+      started_at: string | null
+      current_period_end: string | null
+    }
+
+    const subscriptionByAccount = new Map<string, SubscriptionRecord>()
 
     for (const subscription of subscriptions ?? []) {
       if (!subscriptionByAccount.has(subscription.account_id)) {
