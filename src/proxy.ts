@@ -16,6 +16,7 @@ const protectedPaths = [
   '/email-marketing',
   '/settings',
   '/templates',
+  '/admin',
 ]
 
 function isProtectedPath(pathname: string) {
@@ -84,6 +85,12 @@ export async function proxy(request: NextRequest) {
       return withRefreshedCookies(NextResponse.redirect(url))
     }
 
+    if (!user && pathname.startsWith('/api/admin/')) {
+      return withRefreshedCookies(
+        NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+      )
+    }
+
     if (!user && pathname.startsWith('/api/whatsapp/') && !pathname.includes('/webhook')) {
       return withRefreshedCookies(
         NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -99,6 +106,10 @@ export async function proxy(request: NextRequest) {
       url.pathname = '/login'
       url.search = ''
       return NextResponse.redirect(url)
+    }
+
+    if (pathname.startsWith('/api/admin/')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     if (pathname.startsWith('/api/whatsapp/') && !pathname.includes('/webhook')) {
