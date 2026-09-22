@@ -119,7 +119,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
 
   const readiness = useMemo(() => {
     const normalize = (value: string) => value.replace(/\s+/g, '');
-    const validPhone = (value: string) => /^\\+[1-9]\\d{7,14}$/.test(normalize(value));
+    const validPhone = (value: string) => /^\+[1-9]\d{7,14}$/.test(normalize(value));
     const checks = [
       {
         label: 'AI agent configured',
@@ -170,11 +170,11 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
 
     const destination = testNumber.trim().replace(/\s+/g, '');
     const caller = settings.businessNumber.trim().replace(/\s+/g, '');
-    if (!/^\\+[1-9]\\d{7,14}$/.test(destination)) {
+    if (!/^\+[1-9]\d{7,14}$/.test(destination)) {
       toast.error('Enter the customer test number in E.164 format, e.g. +9198XXXXXXXX.');
       return;
     }
-    if (!/^\\+[1-9]\\d{7,14}$/.test(caller)) {
+    if (!/^\+[1-9]\d{7,14}$/.test(caller)) {
       toast.error('Enter your business/caller number in E.164 format, e.g. +9198XXXXXXXX.');
       return;
     }
