@@ -57,6 +57,7 @@ export function BillingStatus() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [tick, setTick] = useState(0);
+  const [queryError, setQueryError] = useState<string | null>(null);
 
   useEffect(() => {
     setTick(Date.now());
@@ -65,12 +66,16 @@ export function BillingStatus() {
   }, []);
 
   useEffect(() => {
-    if (!accountId) return;
+    if (!accountId) {
+      if (!cancelled) setLoading(false);
+      return;
+    }
     let cancelled = false;
     const load = async () => {
       setLoading(true);
+      setQueryError(null);
       const supabase = createClient();
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('subscriptions')
         .select('plan_id,started_at,current_period_end,status')
         .eq('account_id', accountId)
@@ -80,17 +85,28 @@ export function BillingStatus() {
         .maybeSingle();
       if (!cancelled) {
         setSubscription(data ?? null);
+        setQueryError(error?.message ?? null);
         setLoading(false);
       }
     };
     load();
     return () => { cancelled = true; };
-  }, [accountId]);
+  }, [accountId, profileLoading]);
 
   const daysLeft = useMemo(() => {
     void tick;
     return getDaysLeft(subscription?.current_period_end ?? null);
   }, [subscription?.current_period_end, tick]);
+
+  const isProfileLoading = profileLoading || loading;
+  const hasSubscription = !!subscription?.current_period_end;
+  const indicatorState = isProfileLoading
+    ? 'loading'
+    : queryError
+      ? 'error'
+      : hasSubscription
+        ? 'active'
+        : 'inactive';
 
   const tone =
     daysLeft <= 9 ? 'red' : daysLeft <= 18 ? 'yellow' : 'green';
@@ -118,13 +134,6 @@ export function BillingStatus() {
   const isHeartbeat = daysLeft >= 1 && daysLeft <= 5;
   const heartbeatDuration = getHeartbeatDuration(daysLeft);
 
-  if (loading) {
-    return (
-      <div className="flex h-8 min-w-[112px] shrink-0 items-center rounded-full border border-border bg-muted/40 px-2.5 text-[11px] font-medium text-muted-foreground sm:min-w-[128px] sm:px-3 sm:text-xs">
-        Subscription…
-      </div>
-    );
-  }
 
   return (
     <>
@@ -159,6 +168,18 @@ export function BillingStatus() {
           transform-origin: center;
         }
 
+        .megorah-subscription-dot-heartbeat {
+          animation: megorah-subscription-dot-heartbeat var(--megorah-subscription-heartbeat-duration, 2000ms) ease-in-out infinite;
+        }
+
+        @keyframes megorah-subscription-dot-heartbeat {
+          0%, 100% { transform: scale(1); opacity: 0.85; }
+          12% { transform: scale(1.35); opacity: 1; }
+          24% { transform: scale(1); opacity: 0.9; }
+          36% { transform: scale(1.2); opacity: 1; }
+          48%, 100% { transform: scale(1); opacity: 0.85; }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .megorah-subscription-heartbeat {
             animation: none !important;
@@ -166,34 +187,64 @@ export function BillingStatus() {
         }
       `}</style>
       <div
+        data-testid="subscription-indicator"
+        role="status"
+        aria-live="polite"
         className={cn(
-          'flex h-8 min-w-0 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-semibold tracking-tight transition-shadow sm:gap-2 sm:px-3 sm:text-xs',
-          toneClass,
-          isHeartbeat && 'megorah-subscription-heartbeat',
+          'flex h-8 min-w-[102px] shrink-0 items-center justify-center gap-1.5 rounded-full border px-2.5 text-[11px] font-semibold tracking-tight transition-shadow sm:min-w-[132px] sm:gap-2 sm:px-3 sm:text-xs',
+          indicatorState === 'active' ? toneClass : 'border-border bg-muted/40 text-muted-foreground',
+          isHeartbeat && indicatorState === 'active' && 'megorah-subscription-heartbeat',
         )}
         style={
           isHeartbeat
-            ? ({ animationDuration: heartbeatDuration } as CSSProperties)
+            ? ({
+                animationDuration: heartbeatDuration,
+                ['--megorah-subscription-heartbeat-duration' as string]: heartbeatDuration,
+              } as CSSProperties)
             : undefined
         }
         title={
-          daysLeft > 0
-            ? planLabel + ' · ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + ' remaining'
-            : 'Subscription expired'
+          indicatorState === 'loading'
+            ? 'Loading subscription status'
+            : indicatorState === 'error'
+              ? 'Subscription status could not be loaded'
+              : hasSubscription
+                ? planLabel + ' · ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + ' remaining'
+                : 'No active subscription'
         }
       >
-        <span className={cn('size-2 shrink-0 rounded-full', dotClass, isHeartbeat && 'animate-pulse')} />
-        <span className="hidden max-w-[90px] truncate sm:inline">
-          {planLabel}
+        <span
+          className={cn(
+            'size-2 shrink-0 rounded-full',
+            indicatorState === 'active' ? dotClass : 'bg-muted-foreground/50',
+            isHeartbeat && indicatorState === 'active' && 'megorah-subscription-dot-heartbeat',
+          )}
+        />
+        <span className="hidden max-w-[86px] truncate sm:inline">
+          {indicatorState === 'loading'
+            ? 'Subscription'
+            : indicatorState === 'error'
+              ? 'Plan status'
+              : hasSubscription
+                ? planLabel
+                : 'No active plan'}
         </span>
         <span className="shrink-0 whitespace-nowrap">
-          {daysLeft > 0 ? daysLeft + 'd left' : 'Expired'}
+          {indicatorState === 'loading'
+            ? '…'
+            : indicatorState === 'error'
+              ? 'Unavailable'
+              : hasSubscription
+                ? daysLeft > 0
+                  ? daysLeft + 'd left'
+                  : 'Expired'
+                : 'Inactive'}
         </span>
         <Button
           type="button"
           size="icon-xs"
           variant="ghost"
-          className="ml-0.5 rounded-full"
+          className="ml-0.5 hidden rounded-full sm:inline-flex"
           aria-label="Recharge subscription"
           onClick={() => setOpen(true)}
         >
