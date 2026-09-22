@@ -52,7 +52,7 @@ function getDaysLeft(end: string | null) {
 }
 
 export function BillingStatus() {
-  const { accountId } = useAuth();
+  const { accountId, profileLoading } = useAuth();
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -66,11 +66,11 @@ export function BillingStatus() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     if (!accountId) {
-      if (!cancelled) setLoading(false);
+      setLoading(false);
       return;
     }
-    let cancelled = false;
     const load = async () => {
       setLoading(true);
       setQueryError(null);
