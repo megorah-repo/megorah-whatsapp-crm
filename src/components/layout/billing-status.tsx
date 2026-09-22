@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { CalendarClock, CreditCard, Plus, QrCode, Sparkles } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -119,7 +119,7 @@ export function BillingStatus() {
 
   if (loading) {
     return (
-      <div className="hidden h-8 min-w-[120px] items-center rounded-full border border-border bg-muted/40 px-3 text-xs text-muted-foreground sm:flex">
+      <div className="flex h-8 min-w-[112px] shrink-0 items-center rounded-full border border-border bg-muted/40 px-2.5 text-[11px] font-medium text-muted-foreground sm:min-w-[128px] sm:px-3 sm:text-xs">
         Subscription…
       </div>
     );
@@ -172,7 +172,7 @@ export function BillingStatus() {
         )}
         style={
           isHeartbeat
-            ? ({ animationDuration: heartbeatDuration } as React.CSSProperties)
+            ? ({ animationDuration: heartbeatDuration } as CSSProperties)
             : undefined
         }
         title={
