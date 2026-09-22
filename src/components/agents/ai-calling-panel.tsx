@@ -29,6 +29,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { TwilioConnectionCard } from './twilio-connection-card';
 
 const STORAGE_KEY = 'megorah-ai-calling-settings-v1';
 
@@ -373,9 +374,8 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                 <Input
                   id="calling-number"
                   value={settings.businessNumber}
-                  onChange={(event) => update('businessNumber', event.target.value)}
-                  placeholder="+91 98XXXXXXXX"
-                  disabled={disabled}
+                  placeholder="Connect Twilio to sync caller number"
+                  disabled
                 />
                 <p className="text-xs text-muted-foreground">
                   Use your Twilio number or a verified caller ID. Use E.164 format, e.g. +9198XXXXXXXX.
@@ -383,6 +383,12 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
               </div>
             </CardContent>
           </Card>
+
+          <TwilioConnectionCard
+            canEdit={canEdit}
+            callerNumber={settings.businessNumber}
+            onCallerNumberChange={(value) => update('businessNumber', value)}
+          />
 
           <Card className="border-primary/25 bg-primary/5">
             <CardHeader>
