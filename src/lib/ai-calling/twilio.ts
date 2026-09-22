@@ -44,8 +44,9 @@ export function twilioSignatureBaseUrl(request: Request): string {
 export async function verifyTwilioSignature(
   request: Request,
   params: URLSearchParams,
+  authToken?: string,
 ): Promise<boolean> {
-  const token = process.env.TWILIO_AUTH_TOKEN
+  const token = authToken || process.env.TWILIO_AUTH_TOKEN
   if (!token) return false
 
   const signature = request.headers.get('x-twilio-signature')
@@ -72,8 +73,14 @@ export async function createTwilioCall(args: {
   voiceUrl: string
   statusCallbackUrl: string
   timeLimitSeconds?: number
+  accountSid: string
+  authToken: string
 }): Promise<{ sid: string; status: string }> {
-  const { accountSid, authToken } = twilioConfig()
+  const accountSid = args.accountSid
+  const authToken = args.authToken
+  if (!accountSid || !authToken) {
+    throw new Error('Twilio account credentials are missing.')
+  }
   const body = new URLSearchParams({
     To: args.to,
     From: args.from,
