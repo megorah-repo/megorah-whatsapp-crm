@@ -7,6 +7,8 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  Loader2,
+  PhoneOutgoing,
   Headphones,
   PhoneCall,
   PhoneForwarded,
@@ -96,6 +98,10 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
   const [settings, setSettings] = useState<CallingSettings>(DEFAULTS);
   const [hydrated, setHydrated] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [testNumber, setTestNumber] = useState('');
+  const [testCallLoading, setTestCallLoading] = useState(false);
+  const [testCallStatus, setTestCallStatus] = useState<string | null>(null);
+  const [testSessionId, setTestSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -112,6 +118,8 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
   };
 
   const readiness = useMemo(() => {
+    const normalize = (value: string) => value.replace(/\\s+/g, '');
+    const validPhone = (value: string) => /^\\+[1-9]\\d{7,14}$/.test(normalize(value));
     const checks = [
       {
         label: 'AI agent configured',
@@ -119,7 +127,11 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
       },
       {
         label: 'Caller identity',
-        ready: Boolean(settings.callerName.trim()),
+        ready: Boolean(settings.callerName.trim()) && validPhone(settings.businessNumber),
+      },
+      {
+        label: 'Test destination number',
+        ready: validPhone(testNumber),
       },
       {
         label: 'Voice & language',
@@ -139,7 +151,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
       readyCount: checks.filter((item) => item.ready).length,
       complete: checks.every((item) => item.ready),
     };
-  }, [settings]);
+  }, [settings, testNumber]);
 
   const save = async () => {
     if (!canEdit) return;
@@ -152,6 +164,86 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
       setSaving(false);
     }
   };
+
+  const testCall = async () => {
+    if (!canEdit || testCallLoading) return;
+
+    const destination = testNumber.trim().replace(/\\s+/g, '');
+    const caller = settings.businessNumber.trim().replace(/\\s+/g, '');
+    if (!/^\\+[1-9]\\d{7,14}$/.test(destination)) {
+      toast.error('Enter the customer test number in E.164 format, e.g. +9198XXXXXXXX.');
+      return;
+    }
+    if (!/^\\+[1-9]\\d{7,14}$/.test(caller)) {
+      toast.error('Enter your business/caller number in E.164 format, e.g. +9198XXXXXXXX.');
+      return;
+    }
+    if (!readiness.complete) {
+      toast.error('Complete the calling setup and test number first.');
+      return;
+    }
+
+    setTestCallLoading(true);
+    setTestCallStatus('starting');
+    try {
+      const response = await fetch('/api/ai-calling/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to_number: destination,
+          from_number: caller,
+          caller_name: settings.callerName,
+          greeting: settings.greeting,
+          instructions: settings.instructions,
+          language: settings.language === 'hinglish-IN' ? 'en-IN' : settings.language,
+          transfer_number: settings.transferNumber,
+          transfer_on_handoff: settings.transferOnHandoff,
+          max_call_minutes: settings.maxCallMinutes,
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        session_id?: string;
+        status?: string;
+      };
+      if (!response.ok) {
+        throw new Error(data.error || 'Could not start the test call.');
+      }
+      setTestSessionId(data.session_id ?? null);
+      setTestCallStatus(data.status ?? 'queued');
+      toast.success('Test call started. Your customer number should ring shortly.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not start the test call.';
+      setTestCallStatus('failed');
+      toast.error(message);
+    } finally {
+      setTestCallLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!testSessionId) return;
+    let active = true;
+    const poll = async () => {
+      try {
+        const response = await fetch(
+          `/api/ai-calling/test?session_id=${encodeURIComponent(testSessionId)}`,
+          { cache: 'no-store' },
+        );
+        if (!response.ok || !active) return;
+        const data = (await response.json()) as { status?: string };
+        if (data.status) setTestCallStatus(data.status);
+      } catch {
+        // Status polling is best-effort; the provider call continues independently.
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 2500);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [testSessionId]);
 
   const runReadinessCheck = () => {
     if (!readiness.complete) {
@@ -279,9 +371,69 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                   disabled={disabled}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Store the number you plan to connect to your telephony provider.
+                  Use your Twilio number or a verified caller ID. Use E.164 format, e.g. +9198XXXXXXXX.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-primary/25 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <PhoneOutgoing className="h-4 w-4 text-primary" />
+                Test AI Call
+              </CardTitle>
+              <CardDescription>
+                Enter a customer number and place a real outbound test call from your configured caller number.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="test-customer-number">Customer test number</Label>
+                <Input
+                  id="test-customer-number"
+                  value={testNumber}
+                  onChange={(event) => setTestNumber(event.target.value)}
+                  placeholder="+91 98XXXXXXXX"
+                  inputMode="tel"
+                  disabled={disabled || testCallLoading}
+                />
+                <p className="text-xs text-muted-foreground">
+                  The number entered here will actually ring when you press Start Test Call.
+                </p>
+              </div>
+
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={testCall}
+                disabled={disabled || testCallLoading || !testNumber.trim()}
+              >
+                {testCallLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <PhoneOutgoing className="mr-2 h-4 w-4" />
+                )}
+                {testCallLoading ? 'Starting Call…' : 'Start Test Call'}
+              </Button>
+
+              {testCallStatus && (
+                <div className="rounded-lg border bg-background/70 p-3 text-xs">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Call status</span>
+                    <span className="font-medium capitalize">{testCallStatus.replaceAll('-', ' ')}</span>
+                  </div>
+                  <p className="mt-1 text-muted-foreground">
+                    {testCallStatus === 'completed'
+                      ? 'Test call finished.'
+                      : testCallStatus === 'in-progress' || testCallStatus === 'answered'
+                        ? 'The call is connected. Speak naturally and test the AI response.'
+                        : testCallStatus === 'failed' || testCallStatus === 'busy' || testCallStatus === 'no-answer'
+                          ? 'The provider could not complete the call. Check the caller ID and telephony settings.'
+                          : 'Call request is being processed.'}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -292,7 +444,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                 AI provider
               </CardTitle>
               <CardDescription>
-                Select which AI provider the voice agent will use. This is a provider-selection UI only; no provider API is connected or called from this setting.
+                Select which AI provider the phone agent will use for the test conversation.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -318,7 +470,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Google Gemini is included as a free-test provider option. Actual provider/API connection can be added separately later.
+                  The test call uses the saved provider/API key and sends spoken customer replies through the selected AI provider.
                 </p>
               </div>
             </CardContent>
@@ -461,7 +613,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
             <CardHeader>
               <CardTitle className="text-base">Readiness checklist</CardTitle>
               <CardDescription>
-                Final pre-connection checks for the calling setup.
+                Checks before placing a real test call.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -504,7 +656,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                 Call controls
               </CardTitle>
               <CardDescription>
-                Set practical limits before the voice integration is connected.
+                Set limits for the real test call.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
@@ -553,9 +705,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                 <div>
                   <p className="text-sm font-medium">Provider connection</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    Your AI Agent already handles the intelligence layer. The remaining
-                    step is connecting this calling configuration to your preferred
-                    telephony/voice provider.
+                    Test calls use Twilio for phone connectivity and your saved AI provider for the conversation. Make sure the caller number is a Twilio number or verified caller ID.
                   </p>
                   <div className="mt-3 flex items-center gap-2 text-xs font-medium text-primary">
                     <UserRound className="h-3.5 w-3.5" />
