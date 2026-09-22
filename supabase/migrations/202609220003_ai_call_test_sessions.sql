@@ -40,3 +40,22 @@ before update on public.ai_call_sessions
 for each row execute function public.set_ai_call_session_updated_at();
 
 grant select, insert, update, delete on public.ai_call_sessions to service_role;
+
+create policy "ai call sessions account members"
+on public.ai_call_sessions
+for all
+to authenticated
+using (
+  account_id in (
+    select p.account_id
+    from public.profiles p
+    where p.user_id = auth.uid()
+  )
+)
+with check (
+  account_id in (
+    select p.account_id
+    from public.profiles p
+    where p.user_id = auth.uid()
+  )
+);
