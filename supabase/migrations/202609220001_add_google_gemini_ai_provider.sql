@@ -34,8 +34,7 @@ BEGIN
          AND att.attnum = ANY(con.conkey)
        WHERE con.conrelid = 'public.ai_configs'::regclass
          AND con.contype = 'c'
-         AND con.consrc IS NOT NULL
-         AND con.consrc::text ILIKE '%provider%'
+         AND pg_get_constraintdef(con.oid) ILIKE '%provider%'
     LOOP
       EXECUTE format(
         'ALTER TABLE public.ai_configs DROP CONSTRAINT %I',
