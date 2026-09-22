@@ -16,6 +16,18 @@ export const AI_PROVIDER_DEFAULT_MODEL: Record<AiProvider, string> = {
   'google-gemini': 'gemini-3.5-flash-lite',
 }
 
+/** Normalize retired/previous Gemini defaults so existing accounts do not
+ * silently keep calling Gemini 2.5 after the provider default moved to 3.5. */
+export function normalizeAiModel(provider: AiProvider, model: string): string {
+  if (
+    provider === 'google-gemini' &&
+    (model === 'gemini-2.5-flash-lite' || model === 'gemini-2.5-flash')
+  ) {
+    return AI_PROVIDER_DEFAULT_MODEL['google-gemini']
+  }
+  return model
+}
+
 /**
  * Sentinel the model is instructed to emit (in auto-reply mode) when it
  * can't confidently help and a human should take over. Parsed and
