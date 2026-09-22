@@ -30,7 +30,10 @@ export async function requireAdmin(): Promise<AdminCheck> {
     return { authorized: false, status: 401, reason: 'Authentication required.' };
   }
 
-  const allowedEmails = csv(process.env.MEGORAH_ADMIN_EMAILS);
+  const allowedEmails = [
+    ...csv(process.env.ADMIN_EMAIL),
+    ...csv(process.env.MEGORAH_ADMIN_EMAILS),
+  ];
   const allowedUserIds = csv(process.env.MEGORAH_ADMIN_USER_IDS);
   const email = user.email?.toLowerCase() ?? '';
 
