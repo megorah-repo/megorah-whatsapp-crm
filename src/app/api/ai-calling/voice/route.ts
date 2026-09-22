@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { loadAiConfig } from '@/lib/ai/config'
 import { generateReply } from '@/lib/ai/generate'
-import { parseGeneration } from '@/lib/ai/generate'
 import type { ChatMessage } from '@/lib/ai/types'
 import { escapeXml, twimlResponse, verifyTwilioSignature } from '@/lib/ai-calling/twilio'
 
