@@ -24,10 +24,16 @@ export async function requirePlatformAdmin() {
     redirect("/login");
   }
 
-  const configuredAdminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   const currentEmail = user.email?.trim().toLowerCase();
+  const configuredEmails = [
+    process.env.ADMIN_EMAIL ?? "",
+    process.env.MEGORAH_ADMIN_EMAILS ?? "",
+  ]
+    .flatMap((value) => value.split(","))
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
 
-  if (!configuredAdminEmail || !currentEmail || currentEmail !== configuredAdminEmail) {
+  if (!currentEmail || !configuredEmails.includes(currentEmail)) {
     redirect("/dashboard");
   }
 

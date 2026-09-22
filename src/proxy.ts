@@ -16,6 +16,7 @@ const protectedPaths = [
   '/email-marketing',
   '/settings',
   '/templates',
+  '/admin',
 ]
 
 function isProtectedPath(pathname: string) {
@@ -26,8 +27,16 @@ function isProtectedPath(pathname: string) {
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
+  const adminHost = process.env.MEGORAH_ADMIN_HOSTNAME?.trim().toLowerCase()
+  const isAdminHost = !!adminHost && request.nextUrl.hostname.toLowerCase() === adminHost
   const supabaseUrl = SUPABASE_URL
   const supabaseKey = SUPABASE_PUBLISHABLE_KEY
+
+  if (isAdminHost && pathname === '/') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/admin'
+    return NextResponse.rewrite(url)
+  }
 
   let supabaseResponse = NextResponse.next({ request })
 
@@ -70,7 +79,7 @@ export async function proxy(request: NextRequest) {
       if (inviteToken && (pathname === '/login' || pathname === '/signup')) {
         url.pathname = `/join/${encodeURIComponent(inviteToken)}`
       } else {
-        url.pathname = '/dashboard'
+        url.pathname = isAdminHost ? '/admin' : '/dashboard'
       }
       url.search = ''
 
