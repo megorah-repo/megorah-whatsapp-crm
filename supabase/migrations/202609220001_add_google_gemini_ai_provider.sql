@@ -29,9 +29,6 @@ BEGIN
     FOR constraint_name IN
       SELECT con.conname
         FROM pg_constraint con
-        JOIN pg_attribute att
-          ON att.attrelid = con.conrelid
-         AND att.attnum = ANY(con.conkey)
        WHERE con.conrelid = 'public.ai_configs'::regclass
          AND con.contype = 'c'
          AND pg_get_constraintdef(con.oid) ILIKE '%provider%'
