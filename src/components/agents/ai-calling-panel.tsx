@@ -118,7 +118,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
   };
 
   const readiness = useMemo(() => {
-    const normalize = (value: string) => value.replace(/\\s+/g, '');
+    const normalize = (value: string) => value.replace(/\s+/g, '');
     const validPhone = (value: string) => /^\\+[1-9]\\d{7,14}$/.test(normalize(value));
     const checks = [
       {
@@ -168,8 +168,8 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
   const testCall = async () => {
     if (!canEdit || testCallLoading) return;
 
-    const destination = testNumber.trim().replace(/\\s+/g, '');
-    const caller = settings.businessNumber.trim().replace(/\\s+/g, '');
+    const destination = testNumber.trim().replace(/\s+/g, '');
+    const caller = settings.businessNumber.trim().replace(/\s+/g, '');
     if (!/^\\+[1-9]\\d{7,14}$/.test(destination)) {
       toast.error('Enter the customer test number in E.164 format, e.g. +9198XXXXXXXX.');
       return;
@@ -178,8 +178,15 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
       toast.error('Enter your business/caller number in E.164 format, e.g. +9198XXXXXXXX.');
       return;
     }
-    if (!readiness.complete) {
-      toast.error('Complete the calling setup and test number first.');
+    const testReady =
+      Boolean(settings.callerName.trim()) &&
+      /^\+[1-9]\d{7,14}$/.test(caller) &&
+      /^\+[1-9]\d{7,14}$/.test(destination) &&
+      Boolean(settings.voice && settings.language) &&
+      Boolean(settings.greeting.trim() && settings.instructions.trim());
+
+    if (!testReady) {
+      toast.error('Complete the caller number, customer number, voice/language and call behavior first.');
       return;
     }
 
