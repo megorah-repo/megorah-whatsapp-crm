@@ -71,7 +71,7 @@ export async function loadAiConfig(
 
   return {
     provider: row.provider,
-    model: row.model,
+model: normalizeAiModel(row.provider, row.model),
     apiKey: decrypt(row.api_key),
     systemPrompt: row.system_prompt,
     isActive: row.is_active,
