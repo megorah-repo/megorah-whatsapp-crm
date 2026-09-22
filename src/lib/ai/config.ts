@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { normalizeAiModel } from './defaults'
 import type { AiConfig } from './types'
 
 interface AiConfigRow {
@@ -71,7 +72,7 @@ export async function loadAiConfig(
 
   return {
     provider: row.provider,
-    model: row.model,
+model: normalizeAiModel(row.provider, row.model),
     apiKey: decrypt(row.api_key),
     systemPrompt: row.system_prompt,
     isActive: row.is_active,
