@@ -2,11 +2,11 @@ import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { loadAiConfig } from '@/lib/ai/config'
+import { loadTwilioCallingConfig } from '@/lib/ai-calling/twilio-config'
 import {
   createTwilioCall,
   isValidE164,
   baseUrl,
-  twilioConfig,
 } from '@/lib/ai-calling/twilio'
 
 function cleanNumber(value: unknown): string {
@@ -79,7 +79,21 @@ export async function POST(request: Request) {
       )
     }
 
-    twilioConfig()
+    const twilio = await loadTwilioCallingConfig(accountId)
+    if (!twilio) {
+      return NextResponse.json(
+        { error: 'Connect Twilio in the AI Calling panel before starting a test call.' },
+        { status: 400 },
+      )
+    }
+
+    const actualFrom = twilio.callerNumber || from
+    if (!actualFrom || !isValidE164(actualFrom)) {
+      return NextResponse.json(
+        { error: 'No Twilio Voice caller number is connected. Sync or select a Twilio number first.' },
+        { status: 400 },
+      )
+    }
 
     const settings = {
       callerName,
@@ -98,7 +112,7 @@ export async function POST(request: Request) {
       .insert({
         account_id: accountId,
         provider: 'twilio',
-        from_number: from,
+        from_number: actualFrom,
         to_number: to,
         status: 'queued',
         settings,
@@ -124,8 +138,10 @@ export async function POST(request: Request) {
     try {
       const call = await createTwilioCall({
         to,
-        from,
+        from: actualFrom,
         voiceUrl,
+        accountSid: twilio.accountSid,
+        authToken: twilio.authToken,
         statusCallbackUrl,
         timeLimitSeconds: maxCallMinutes * 60,
       })
