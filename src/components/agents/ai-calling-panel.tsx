@@ -257,7 +257,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
       toast.error('Complete the highlighted calling setup items first.');
       return;
     }
-    toast.success('AI Calling setup is ready for voice-provider connection.');
+    toast.success('AI Calling is ready. You can place a real test call.');
   };
 
   if (!hydrated) {
