@@ -9,6 +9,7 @@ import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { validateAiCredentials } from '@/lib/ai/validate'
 import { embedTexts } from '@/lib/ai/embeddings'
 import { AiError, type AiProvider } from '@/lib/ai/types'
+import { normalizeAiModel } from '@/lib/ai/defaults'
 
 function bad(message: string) {
   return NextResponse.json({ error: message }, { status: 400 })
@@ -81,7 +82,8 @@ export async function POST(request: Request) {
     if (provider !== 'openai' && provider !== 'anthropic' && provider !== 'google-gemini') {
       return bad('provider must be "openai", "anthropic", or "google-gemini"')
     }
-    const model = typeof body.model === 'string' ? body.model.trim() : ''
+    let model = typeof body.model === 'string' ? body.model.trim() : ''
+    if (provider === 'google-gemini') model = normalizeAiModel(provider, model)
     if (!model) return bad('model is required')
 
     const systemPrompt =
