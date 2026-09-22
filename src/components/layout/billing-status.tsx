@@ -92,7 +92,7 @@ export function BillingStatus() {
   }, [subscription?.current_period_end, tick]);
 
   const tone =
-    daysLeft <= 5 ? 'red' : daysLeft <= 18 ? 'yellow' : 'green';
+    daysLeft <= 9 ? 'red' : daysLeft <= 18 ? 'yellow' : 'green';
 
   const toneClass = {
     green:
@@ -238,7 +238,7 @@ export function BillingStatus() {
 
             <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
               <CalendarClock className="size-4" />
-              On successful payment, the next period will add 30 days.
+              On successful payment, the next period follows the purchased subscription duration.
             </div>
           </div>
 
