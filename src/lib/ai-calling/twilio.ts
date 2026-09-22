@@ -34,7 +34,7 @@ export function twilioConfig() {
 }
 
 export function isValidE164(value: string): boolean {
-  return /^\\+[1-9]\\d{7,14}$/.test(value.trim())
+  return /^\+[1-9]\d{7,14}$/.test(value.trim())
 }
 
 export function twilioSignatureBaseUrl(request: Request): string {
