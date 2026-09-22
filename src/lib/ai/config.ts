@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { normalizeAiModel } from './defaults'
 import type { AiConfig } from './types'
 
 interface AiConfigRow {
