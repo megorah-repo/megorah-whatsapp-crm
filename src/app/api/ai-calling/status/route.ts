@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { loadTwilioCallingConfig } from '@/lib/ai-calling/twilio-config'
 import { verifyTwilioSignature } from '@/lib/ai-calling/twilio'
 
 function formDataToParams(form: FormData): URLSearchParams {
@@ -12,15 +13,24 @@ export async function POST(request: Request) {
   const params = formDataToParams(await request.formData())
 
   try {
-    const valid = await verifyTwilioSignature(request, params)
-    if (!valid) return new NextResponse('Forbidden', { status: 403 })
-
     const sessionId = new URL(request.url).searchParams.get('session_id')?.trim()
     if (!sessionId) return NextResponse.json({ error: 'Missing session_id' }, { status: 400 })
 
+    const db = createServiceRoleClient()
+    const { data: session } = await db
+      .from('ai_call_sessions')
+      .select('account_id')
+      .eq('id', sessionId)
+      .maybeSingle()
+    if (!session) return new NextResponse('Call session not found', { status: 404 })
+
+    const twilio = await loadTwilioCallingConfig(session.account_id)
+    if (!twilio) return new NextResponse('Twilio configuration unavailable', { status: 500 })
+    const valid = await verifyTwilioSignature(request, params, twilio.authToken)
+    if (!valid) return new NextResponse('Forbidden', { status: 403 })
+
     const status = params.get('CallStatus') || 'unknown'
     const callSid = params.get('CallSid')
-    const db = createServiceRoleClient()
 
     const terminal = new Set(['completed', 'busy', 'failed', 'no-answer', 'canceled'])
     const patch: Record<string, unknown> = {
