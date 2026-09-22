@@ -10,7 +10,7 @@ import {
 } from '@/lib/ai-calling/twilio'
 
 function cleanNumber(value: unknown): string {
-  return typeof value === 'string' ? value.trim().replace(/\\s+/g, '') : ''
+  return typeof value === 'string' ? value.trim().replace(/\s+/g, '') : ''
 }
 
 export async function POST(request: Request) {
@@ -23,7 +23,6 @@ export async function POST(request: Request) {
     }
 
     const to = cleanNumber(body.to_number)
-    const from = cleanNumber(body.from_number)
     const callerName =
       typeof body.caller_name === 'string' ? body.caller_name.trim() : 'Megorah AI'
     const greeting =
@@ -42,23 +41,6 @@ export async function POST(request: Request) {
     if (!isValidE164(to)) {
       return NextResponse.json(
         { error: 'Customer test number must be in E.164 format, e.g. +9198XXXXXXXX.' },
-        { status: 400 },
-      )
-    }
-
-    if (!isValidE164(from)) {
-      return NextResponse.json(
-        {
-          error:
-            'Your business/caller number must be in E.164 format, e.g. +9198XXXXXXXX.',
-        },
-        { status: 400 },
-      )
-    }
-
-    if (from === to) {
-      return NextResponse.json(
-        { error: 'Your business number and customer test number cannot be the same.' },
         { status: 400 },
       )
     }
@@ -87,7 +69,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const actualFrom = twilio.callerNumber || from
+    const actualFrom = twilio.callerNumber
     if (!actualFrom || !isValidE164(actualFrom)) {
       return NextResponse.json(
         { error: 'No Twilio Voice caller number is connected. Sync or select a Twilio number first.' },
