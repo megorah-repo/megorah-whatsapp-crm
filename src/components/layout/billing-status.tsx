@@ -56,9 +56,10 @@ export function BillingStatus() {
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [tick, setTick] = useState(Date.now());
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
+    setTick(Date.now());
     const timer = window.setInterval(() => setTick(Date.now()), 60000);
     return () => window.clearInterval(timer);
   }, []);
