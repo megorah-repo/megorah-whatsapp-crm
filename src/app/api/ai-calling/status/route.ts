@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
-import { twilioResponseBody, verifyTwilioSignature } from '@/lib/ai-calling/twilio'
+import { verifyTwilioSignature } from '@/lib/ai-calling/twilio'
 
 function formDataToParams(form: FormData): URLSearchParams {
   const params = new URLSearchParams()
