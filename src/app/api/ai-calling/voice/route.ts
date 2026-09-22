@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { loadAiConfig } from '@/lib/ai/config'
+import { loadTwilioCallingConfig } from '@/lib/ai-calling/twilio-config'
 import { generateReply } from '@/lib/ai/generate'
 import type { ChatMessage } from '@/lib/ai/types'
 import { escapeXml, twimlResponse, verifyTwilioSignature } from '@/lib/ai-calling/twilio'
@@ -35,9 +36,6 @@ export async function POST(request: Request) {
   const params = formDataToParams(await request.formData())
 
   try {
-    const valid = await verifyTwilioSignature(request, params)
-    if (!valid) return new NextResponse('Forbidden', { status: 403 })
-
     const sessionId = new URL(request.url).searchParams.get('session_id')?.trim()
     if (!sessionId) return new NextResponse('Missing session_id', { status: 400 })
 
@@ -51,6 +49,11 @@ export async function POST(request: Request) {
     if (sessionError || !session) {
       return new NextResponse('Call session not found', { status: 404 })
     }
+
+    const twilio = await loadTwilioCallingConfig(session.account_id)
+    if (!twilio) return new NextResponse('Twilio configuration unavailable', { status: 500 })
+    const valid = await verifyTwilioSignature(request, params, twilio.authToken)
+    if (!valid) return new NextResponse('Forbidden', { status: 403 })
 
     const settings = (session.settings ?? {}) as {
       callerName?: string
