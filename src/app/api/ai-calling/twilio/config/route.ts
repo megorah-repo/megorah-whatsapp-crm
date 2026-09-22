@@ -68,33 +68,16 @@ export async function GET() {
         caller_number: '',
         last_verified_at: null,
         last_error: null,
-        numbers: [],
       })
     }
 
-    let numbers: TwilioNumber[] = []
-    try {
-      const payload = await twilioGet(
-        data.account_sid,
-        data.auth_token.includes(':') ? '' : '',
-        '/IncomingPhoneNumbers.json?PageSize=50',
-      )
-      numbers = Array.isArray(payload?.incoming_phone_numbers)
-        ? payload.incoming_phone_numbers
-        : []
-    } catch {
-      // Token is encrypted and is intentionally never returned. Number sync
-      // happens on POST/refresh where decrypt() is available.
-    }
-
     return NextResponse.json({
-      configured: true,
+      configured: Boolean(data.is_active),
       has_auth_token: Boolean(data.auth_token),
       account_sid: data.account_sid,
       caller_number: data.caller_number ?? '',
       last_verified_at: data.last_verified_at,
       last_error: data.last_error,
-      numbers,
     })
   } catch (err) {
     return toErrorResponse(err)
@@ -164,28 +147,7 @@ export async function POST(request: Request) {
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Could not connect Twilio.'
-    try {
-      const { accountId } = await requireRole('admin')
-      const current = await createServiceRoleClient()
-        .from('ai_calling_twilio_configs')
-        .select('account_sid')
-        .eq('account_id', accountId)
-        .maybeSingle()
-      if (current.data?.account_sid) {
-        await saveTwilioCallingConfig({
-          accountId,
-          accountSid: current.data.account_sid,
-          authToken: typeof bodyOrEmpty(request) === 'string' ? '' : '',
-          lastError: message.slice(0, 1000),
-        })
-      }
-    } catch {
-      // Preserve the original error response even if failure logging cannot be persisted.
-    }
     return NextResponse.json({ error: message }, { status: 400 })
   }
 }
 
-function bodyOrEmpty(_request: Request): string {
-  return ''
-}
