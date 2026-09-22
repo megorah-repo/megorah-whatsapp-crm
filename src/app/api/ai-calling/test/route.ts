@@ -127,6 +127,7 @@ export async function POST(request: Request) {
         from,
         voiceUrl,
         statusCallbackUrl,
+        timeLimitSeconds: maxCallMinutes * 60,
       })
 
       await db
