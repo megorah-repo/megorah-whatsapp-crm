@@ -71,6 +71,7 @@ export async function createTwilioCall(args: {
   from: string
   voiceUrl: string
   statusCallbackUrl: string
+  timeLimitSeconds?: number
 }): Promise<{ sid: string; status: string }> {
   const { accountSid, authToken } = twilioConfig()
   const body = new URLSearchParams({
@@ -81,6 +82,7 @@ export async function createTwilioCall(args: {
     StatusCallback: args.statusCallbackUrl,
     StatusCallbackMethod: 'POST',
     StatusCallbackEvent: 'initiated ringing answered completed',
+    TimeLimit: String(Math.min(Math.max(args.timeLimitSeconds ?? 720, 60), 14400)),
   })
 
   const response = await fetch(
