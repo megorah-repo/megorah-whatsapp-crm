@@ -200,7 +200,7 @@ export function TwilioOperationsCenter({
     } finally {
       setSyncing(false)
     }
-  }, [connected, onCallerNumberChange])
+  }, [connected, callerNumber])
 
   const connect = async () => {
     if (!canEdit || loading) return
@@ -527,7 +527,7 @@ export function TwilioOperationsCenter({
                 Get a Twilio Voice Number
               </CardTitle>
               <CardDescription>
-                Search Twilio's live inventory and purchase a number without leaving the CRM.
+                Search Twilio&apos;s live inventory and purchase a number without leaving the CRM.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -759,7 +759,7 @@ export function TwilioOperationsCenter({
                 Billing stays at Twilio
               </div>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Megorah uses your connected Twilio account; CRM does not replace Twilio's underlying carrier billing.
+                Megorah uses your connected Twilio account; CRM does not replace Twilio&apos;s underlying carrier billing.
               </p>
             </div>
           </div>
