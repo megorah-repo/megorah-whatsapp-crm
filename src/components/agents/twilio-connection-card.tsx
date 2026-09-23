@@ -264,7 +264,7 @@ export function TwilioConnectionCard({
                       {numbers.map((number) => (
                         <SelectItem key={number.phone_number} value={number.phone_number}>
                           {number.friendly_name
-                            ? \`\${number.friendly_name} — \${number.phone_number}\`
+                            ? `${number.friendly_name} — ${number.phone_number}`
                             : number.phone_number}
                         </SelectItem>
                       ))}
