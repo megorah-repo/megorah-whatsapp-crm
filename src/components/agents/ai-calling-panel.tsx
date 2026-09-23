@@ -29,7 +29,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { TwilioConnectionCard } from './twilio-connection-card';
+import { TwilioOperationsCenter } from './twilio-operations-center';
 
 const STORAGE_KEY = 'megorah-ai-calling-settings-v1';
 
@@ -384,7 +384,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
             </CardContent>
           </Card>
 
-          <TwilioConnectionCard
+          <TwilioOperationsCenter
             canEdit={canEdit}
             callerNumber={settings.businessNumber}
             onCallerNumberChange={(value) => update('businessNumber', value)}
