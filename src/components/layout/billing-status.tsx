@@ -54,21 +54,23 @@ function getDaysLeft(end: string | null) {
 export function BillingStatus() {
   const { accountId, profileLoading } = useAuth();
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [tick, setTick] = useState(0);
   const [queryError, setQueryError] = useState<string | null>(null);
 
   useEffect(() => {
-    setTick(Date.now());
+    const initialTimer = window.setTimeout(() => setTick(Date.now()), 0);
     const timer = window.setInterval(() => setTick(Date.now()), 60000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     if (!accountId) {
-      setLoading(false);
       return;
     }
     const load = async () => {
@@ -98,7 +100,7 @@ export function BillingStatus() {
     return getDaysLeft(subscription?.current_period_end ?? null);
   }, [subscription?.current_period_end, tick]);
 
-  const isProfileLoading = profileLoading || loading;
+  const isProfileLoading = profileLoading || (!!accountId && loading);
   const hasSubscription = !!subscription?.current_period_end;
   const indicatorState = isProfileLoading
     ? 'loading'
@@ -109,7 +111,7 @@ export function BillingStatus() {
         : 'inactive';
 
   const tone =
-    daysLeft <= 9 ? 'red' : daysLeft <= 18 ? 'yellow' : 'green';
+    daysLeft <= 5 ? 'red' : daysLeft <= 18 ? 'yellow' : 'green';
 
   const toneClass = {
     green:
