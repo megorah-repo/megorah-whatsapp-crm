@@ -45,8 +45,10 @@ type CallRecord = {
   price_unit?: string | null
 }
 
+type UsageRecord = { usage?: string; count?: string; price?: number; price_unit?: string }
 type UsageData = {
-  calls?: { usage?: string; count?: string; price?: number; price_unit?: string } | null
+  calls?: UsageRecord | null
+  outbound_calls?: UsageRecord | null
 }
 
 function todayIndia(): string {
@@ -99,18 +101,26 @@ function statusClass(status?: string | null): string {
   return 'bg-red-500/10 text-red-700 dark:text-red-400'
 }
 
+function primaryUsageRecord(data: UsageData | null): UsageRecord | null {
+  return data?.outbound_calls ?? data?.calls ?? null
+}
+
 function usageMinutes(data: UsageData | null): string {
-  const value = Number(data?.calls?.usage ?? 0)
+  const value = Number(primaryUsageRecord(data)?.usage ?? 0)
   return Number.isFinite(value) ? value.toFixed(value % 1 ? 2 : 0) : '0'
 }
 
 function usageCount(data: UsageData | null): number {
-  return Number(data?.calls?.count ?? 0) || 0
+  return Number(primaryUsageRecord(data)?.count ?? 0) || 0
 }
 
 function usagePrice(data: UsageData | null): string {
-  const value = Number(data?.calls?.price ?? 0)
-  return Number.isFinite(value) ? value.toFixed(4) : '0.0000'
+  const value = Number(primaryUsageRecord(data)?.price ?? 0)
+  return Number.isFinite(value) ? Math.abs(value).toFixed(4) : '0.0000'
+}
+
+function usageCurrency(data: UsageData | null): string {
+  return (primaryUsageRecord(data)?.price_unit || 'USD').toUpperCase()
 }
 
 export function TwilioOperationsCenter({
@@ -145,6 +155,7 @@ export function TwilioOperationsCenter({
   const [todayUsage, setTodayUsage] = useState<UsageData | null>(null)
   const [thirtyDayUsage, setThirtyDayUsage] = useState<UsageData | null>(null)
   const [usageLoading, setUsageLoading] = useState(false)
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
 
   const callerNumberChangeRef = useRef(onCallerNumberChange)
   callerNumberChangeRef.current = onCallerNumberChange
@@ -315,6 +326,7 @@ export function TwilioOperationsCenter({
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Could not load call history.')
       setCalls(data.calls || [])
+      if (data.fetched_at) setLastSyncedAt(data.fetched_at)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not load call history.')
     } finally {
@@ -336,6 +348,12 @@ export function TwilioOperationsCenter({
       if (!thirtyResponse.ok) throw new Error(thirtyData.error || 'Could not load 30-day usage.')
       setTodayUsage(todayData)
       setThirtyDayUsage(thirtyData)
+      setLastSyncedAt(
+        [todayData.fetched_at, thirtyData.fetched_at]
+          .filter(Boolean)
+          .sort()
+          .pop() || null,
+      )
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not load Twilio usage.')
     } finally {
@@ -348,17 +366,19 @@ export function TwilioOperationsCenter({
   }, [loadConfig])
 
   useEffect(() => {
-    if (connected) {
+    if (!connected) return
+    void loadUsage()
+    void loadCalls()
+
+    const interval = window.setInterval(() => {
       void loadUsage()
       void loadCalls()
-    }
+    }, 60_000)
+
+    return () => window.clearInterval(interval)
   }, [connected, loadUsage, loadCalls])
 
-  const currency = (
-    todayUsage?.calls?.price_unit ||
-    thirtyDayUsage?.calls?.price_unit ||
-    'USD'
-  ).toUpperCase()
+  const currency = usageCurrency(todayUsage || thirtyDayUsage)
 
   const summary = useMemo(
     () => ({
@@ -579,7 +599,7 @@ export function TwilioOperationsCenter({
                   Voice Usage
                 </CardTitle>
                 <CardDescription>
-                  Live Twilio voice usage pulled directly from the connected account. The cost shown here is the voice-call usage record, not the entire Twilio account total.
+                  Live outbound voice usage pulled directly from the connected Twilio account. Counts, minutes and voice cost update automatically every 60 seconds.
                 </CardDescription>
               </div>
               <Button variant="ghost" size="sm" onClick={() => void loadUsage()} disabled={usageLoading}>
@@ -603,6 +623,11 @@ export function TwilioOperationsCenter({
                   </div>
                 ))}
               </div>
+              {lastSyncedAt && (
+                <p className="mt-3 text-[11px] text-muted-foreground">
+                  Last provider sync: {formatDateTime(lastSyncedAt)}
+                </p>
+              )}
             </CardContent>
           </Card>
 
