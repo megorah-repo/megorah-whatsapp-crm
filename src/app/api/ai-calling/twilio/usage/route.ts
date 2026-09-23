@@ -55,7 +55,16 @@ export async function GET(request: Request) {
       ),
     ])
 
-    const read = (payload: any) => payload?.usage_records?.[0] ?? payload?.usageRecords?.[0] ?? null
+    type UsagePayload = {
+      usage_records?: unknown[]
+      usageRecords?: unknown[]
+    }
+
+    const read = (payload: unknown) => {
+      if (!payload || typeof payload !== 'object') return null
+      const value = payload as UsagePayload
+      return value.usage_records?.[0] ?? value.usageRecords?.[0] ?? null
+    }
 
     return NextResponse.json({
       configured: true,
