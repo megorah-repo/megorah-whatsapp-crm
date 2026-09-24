@@ -119,14 +119,23 @@ export async function GET() {
         wabaId: config.waba_id,
         accessToken,
       })
-      // Meta returns the apps subscribed to this WABA. If the list
-      // is non-empty, OUR app is in there (the access_token we used
-      // belongs to our app — Meta wouldn't return data for an app
-      // the token can't see). Treat any entry as success.
-      checks.waba_subscribed_to_app = subs.length > 0
+      // Match the actual CRM Meta App when META_APP_ID is configured.
+      // Treating any subscribed app as ours creates false-green diagnostics
+      // when a number is still connected to another app.
+      const configuredAppId = process.env.META_APP_ID?.trim() || null
+      const matchingApp = configuredAppId
+        ? subs.find(
+            (app) => app.whatsapp_business_api_data?.id === configuredAppId,
+          )
+        : subs[0]
+
+      checks.waba_subscribed_to_app = Boolean(matchingApp)
+
       if (!checks.waba_subscribed_to_app) {
         errors.push(
-          'WABA has no subscribed apps. Re-save the configuration to subscribe.',
+          configuredAppId
+            ? `This WABA is not subscribed to the CRM Meta App (${configuredAppId}). Re-save the configuration after the Meta App has Webhooks enabled.`
+            : 'This WABA does not show a subscribed app that can be matched to the CRM. Set META_APP_ID on the server for an exact diagnostic.',
         )
       }
     } catch (err) {
