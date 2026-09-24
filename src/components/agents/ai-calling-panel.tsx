@@ -30,6 +30,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { TwilioOperationsCenter } from './twilio-operations-center';
+import { DirectCallingApiCard } from './direct-calling-api-card';
 
 const STORAGE_KEY = 'megorah-ai-calling-settings-v1';
 
@@ -103,6 +104,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
   const [testCallLoading, setTestCallLoading] = useState(false);
   const [testCallStatus, setTestCallStatus] = useState<string | null>(null);
   const [testSessionId, setTestSessionId] = useState<string | null>(null);
+  const [directApiConnected, setDirectApiConnected] = useState(false);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -374,21 +376,30 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                 <Input
                   id="calling-number"
                   value={settings.businessNumber}
-                  placeholder="Connect Twilio to sync caller number"
+                  placeholder="Connect your calling provider to sync caller number"
                   disabled
                 />
                 <p className="text-xs text-muted-foreground">
-                  Use your Twilio number or a verified caller ID. Use E.164 format, e.g. +9198XXXXXXXX.
+                  Use the connected provider number or a verified caller ID. Use E.164 format, e.g. +9198XXXXXXXX.
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          <TwilioOperationsCenter
+          <DirectCallingApiCard
             canEdit={canEdit}
             callerNumber={settings.businessNumber}
             onCallerNumberChange={(value) => update('businessNumber', value)}
+            onConnected={() => setDirectApiConnected(true)}
           />
+
+          {!directApiConnected && (
+            <TwilioOperationsCenter
+              canEdit={canEdit}
+              callerNumber={settings.businessNumber}
+              onCallerNumberChange={(value) => update('businessNumber', value)}
+            />
+          )}
 
           <Card className="border-primary/25 bg-primary/5">
             <CardHeader>
