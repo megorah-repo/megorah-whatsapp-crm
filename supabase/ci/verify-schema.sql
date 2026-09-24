@@ -154,6 +154,15 @@ BEGIN
     RAISE EXCEPTION 'ai_call_sessions call metrics columns are missing';
   END IF;
 
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'broadcasts'
+      AND column_name = 'header_media_url'
+  ) THEN
+    RAISE EXCEPTION 'broadcasts.header_media_url is missing — durable media delivery is unavailable';
+  END IF;
+
   RAISE NOTICE 'schema verification passed';
 END
 $$;
