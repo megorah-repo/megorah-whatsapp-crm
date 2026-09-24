@@ -55,12 +55,9 @@ export async function POST(request: Request) {
     const db = createServiceRoleClient()
     const direct = await loadDirectCallingApiConfig(accountId)
 
-    let aiConfig = null
-    if (!direct) {
-      aiConfig = await loadAiConfig(db, accountId)
-      if (!aiConfig) {
-        return NextResponse.json({ error: 'AI is not configured or is disabled for this account. Or connect a Direct Calls API provider.' }, { status: 400 })
-      }
+    const aiConfig = direct ? null : await loadAiConfig(db, accountId)
+    if (!direct && !aiConfig) {
+      return NextResponse.json({ error: 'AI is not configured or is disabled for this account. Or connect a Direct Calls API provider.' }, { status: 400 })
     }
 
     const twilio = direct ? null : await loadTwilioCallingConfig(accountId)
