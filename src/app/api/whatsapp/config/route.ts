@@ -364,7 +364,7 @@ export async function POST(request: Request) {
         : existing?.verify_token ?? null,
       status: setupError ? 'disconnected' : 'connected',
       connected_at: setupError ? null : new Date().toISOString(),
-      registered_at: registrationError ? null : registeredAt,
+      registered_at: setupError ? null : registeredAt,
       subscribed_apps_at: subscribedAppsAt ?? null,
       last_registration_error: setupError,
       updated_at: new Date().toISOString(),
