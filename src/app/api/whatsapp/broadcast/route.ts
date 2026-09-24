@@ -54,6 +54,7 @@ export async function POST(request: Request) {
       )
     }
 
+    const admin = supabaseAdmin()
     const plan = await createBroadcast(supabase, accountId, userId, {
       name,
       templateName,
@@ -75,9 +76,7 @@ export async function POST(request: Request) {
       }),
       headerMediaUrl: headerMediaUrl || null,
       scheduledAt: scheduledAt ? scheduledAt.toISOString() : null,
-    })
-
-    const admin = supabaseAdmin()
+    }, admin)
     if (scheduledAt) {
       return NextResponse.json(
         {
