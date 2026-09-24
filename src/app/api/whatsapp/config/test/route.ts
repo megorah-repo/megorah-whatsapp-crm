@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
 
-      const payload = body as {
+    const payload = body as {
       phone_number_id?: unknown
       waba_id?: unknown
       access_token?: unknown
