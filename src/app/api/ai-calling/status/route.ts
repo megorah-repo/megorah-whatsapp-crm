@@ -31,11 +31,18 @@ export async function POST(request: Request) {
 
     const status = params.get('CallStatus') || 'unknown'
     const callSid = params.get('CallSid')
+    const durationSeconds = Number(params.get('CallDuration') || 0)
+    const priceRaw = params.get('Price')
+    const price = priceRaw && Number.isFinite(Number(priceRaw)) ? Number(priceRaw) : null
+    const priceUnit = params.get('PriceUnit')
 
     const terminal = new Set(['completed', 'busy', 'failed', 'no-answer', 'canceled'])
     const patch: Record<string, unknown> = {
       status,
       provider_call_sid: callSid || undefined,
+      duration_seconds: Number.isFinite(durationSeconds) ? Math.max(0, Math.round(durationSeconds)) : 0,
+      cost: price,
+      cost_currency: priceUnit || null,
     }
 
     if (terminal.has(status)) {
