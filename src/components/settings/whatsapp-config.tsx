@@ -151,7 +151,13 @@ export function WhatsAppConfig() {
         setPhoneNumberId('');
         setWabaId('');
         setAccessToken('');
-        setVerifyToken('');
+        // Generate a webhook verify token automatically for first-time setup.
+        // The user only has to copy this same value into Meta's webhook form.
+        const generatedVerifyToken =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? `megorah_${crypto.randomUUID().replace(/-/g, '')}`
+            : `megorah_${Math.random().toString(36).slice(2)}`;
+        setVerifyToken(generatedVerifyToken);
         setPin('');
         setTokenEdited(false);
         setCredentialsTested(false);
@@ -764,7 +770,7 @@ export function WhatsAppConfig() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                {t('webhookVerifyTokenHint')} For first-time setup, generate one here, then paste this exact value into Meta.
+                {t('webhookVerifyTokenHint')} For a new workspace this token is generated automatically. Paste the exact same value into Meta.
               </p>
             </div>
 
