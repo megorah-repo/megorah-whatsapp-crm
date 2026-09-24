@@ -4,7 +4,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import {
   registerPhoneNumber,
   subscribeWabaToApp,
-  verifyPhoneNumber,
+  verifyWhatsAppSetup,
 } from '@/lib/whatsapp/meta-api'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 
@@ -187,9 +187,9 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { phone_number_id, waba_id, access_token, verify_token, pin } = body
 
-    if (!access_token || !phone_number_id) {
+    if (!access_token || !phone_number_id || !waba_id) {
       return NextResponse.json(
-        { error: 'access_token and phone_number_id are required' },
+        { error: 'Phone Number ID, WABA ID, and Access Token are required.' },
         { status: 400 }
       )
     }
@@ -235,18 +235,23 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verify credentials with Meta BEFORE saving
+    // Verify the complete Meta setup BEFORE saving:
+    // token → phone → WABA → phone belongs to that WABA.
     let phoneInfo
+    let wabaInfo
     try {
-      phoneInfo = await verifyPhoneNumber({
+      const verified = await verifyWhatsAppSetup({
         phoneNumberId: phone_number_id,
+        wabaId: waba_id,
         accessToken: access_token,
       })
+      phoneInfo = verified.phone
+      wabaInfo = verified.waba
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown Meta API error'
       console.error('Meta API verification failed during save:', message)
       return NextResponse.json(
-        { error: `Meta API error: ${message}` },
+        { error: `Meta setup verification failed: ${message}` },
         { status: 400 }
       )
     }
@@ -334,37 +339,34 @@ export async function POST(request: Request) {
     // Skipped only when there's no waba_id (legacy rows from before
     // we required it).
     let subscribedAppsAt: string | null = null
-    if (waba_id) {
-      try {
-        await subscribeWabaToApp({
-          wabaId: waba_id,
-          accessToken: access_token,
-        })
-        subscribedAppsAt = new Date().toISOString()
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        console.warn('WABA subscribed_apps failed (non-fatal):', message)
-        // Subscription failures are rare once the App has the right
-        // permissions; we don't block save on them — the diagnostic
-        // endpoint surfaces this state too.
-      }
+    let subscriptionError: string | null = null
+    try {
+      await subscribeWabaToApp({
+        wabaId: waba_id,
+        accessToken: access_token,
+      })
+      subscribedAppsAt = new Date().toISOString()
+    } catch (err) {
+      subscriptionError = err instanceof Error ? err.message : String(err)
+      console.error('WABA subscribed_apps failed:', subscriptionError)
     }
 
     // Persist everything in one shot. If /register failed we still
     // store the credentials and the error so the UI can guide the
     // user through a retry.
+    const setupError = registrationError ?? subscriptionError
     const baseRow = {
       phone_number_id,
-      waba_id: waba_id || null,
+      waba_id,
       access_token: encryptedAccessToken,
       verify_token: verify_token
         ? encryptedVerifyToken
         : existing?.verify_token ?? null,
-      status: registrationError ? 'disconnected' : 'connected',
-      connected_at: registrationError ? null : new Date().toISOString(),
+      status: setupError ? 'disconnected' : 'connected',
+      connected_at: setupError ? null : new Date().toISOString(),
       registered_at: registrationError ? null : registeredAt,
       subscribed_apps_at: subscribedAppsAt ?? null,
-      last_registration_error: registrationError,
+      last_registration_error: setupError,
       updated_at: new Date().toISOString(),
     }
 
@@ -403,16 +405,18 @@ export async function POST(request: Request) {
       }
     }
 
-    if (registrationError) {
-      // Save succeeded but the number isn't actually live. Return
-      // 200 with a structured error so the UI can show the specific
-      // remediation step instead of a generic toast.
+    if (setupError) {
+      // Save succeeded but the number is not fully live. Return a
+      // structured error so the UI can show the exact Meta setup failure.
       return NextResponse.json({
         success: false,
         saved: true,
-        registered: false,
+        registered: registrationError ? false : registeredAt != null,
+        setup_error: setupError,
         registration_error: registrationError,
+        subscription_error: subscriptionError,
         phone_info: phoneInfo,
+        waba_info: wabaInfo,
       })
     }
 
