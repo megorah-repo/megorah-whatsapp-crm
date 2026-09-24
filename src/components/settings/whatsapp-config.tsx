@@ -695,7 +695,10 @@ export function WhatsAppConfig() {
               <Input
                 placeholder="e.g. 100234567890456"
                 value={wabaId}
-                onChange={(e) => setWabaId(e.target.value)}
+                onChange={(e) => {
+                  setWabaId(e.target.value);
+                  setCredentialsTested(false);
+                }}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
               />
             </div>
