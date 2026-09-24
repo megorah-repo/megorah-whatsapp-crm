@@ -61,9 +61,24 @@ export async function POST(request: Request) {
         }
       }),
       headerMediaUrl: headerMediaUrl || null,
+      scheduledAt: scheduledAt ? scheduledAt.toISOString() : null,
     })
 
     const admin = supabaseAdmin()
+    if (scheduledAt) {
+      return NextResponse.json(
+        {
+          success: true,
+          broadcast_id: plan.broadcastId,
+          status: 'scheduled',
+          scheduled_at: scheduledAt.toISOString(),
+          total: plan.planned.length,
+          rejected: plan.rejected,
+        },
+        { status: 202 },
+      )
+    }
+
     after(async () => {
       try {
         await deliverBroadcast(admin, plan)
