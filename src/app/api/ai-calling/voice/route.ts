@@ -107,7 +107,7 @@ export async function POST(request: Request) {
     const result = await generateReply({
       config: aiConfig,
       systemPrompt,
-      messages: [...history, { role: 'user', content: speech }],
+      messages: [...history, { role: 'user', content: speech } as ChatMessage],
     })
 
     const nextHistory: ChatMessage[] = [
