@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { decrypt, encrypt } from '@/lib/whatsapp/encryption'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
@@ -13,6 +14,7 @@ export interface DirectCallingApiConfig {
   isActive: boolean
   lastVerifiedAt: string | null
   lastError: string | null
+  webhookSecret: string | null
 }
 
 export function isSafePublicHttpsUrl(value: string): boolean {
@@ -53,7 +55,7 @@ export async function loadDirectCallingApiConfig(accountId: string): Promise<Dir
   const db = createServiceRoleClient()
   const { data, error } = await db
     .from('ai_calling_direct_api_configs')
-    .select('account_id, provider_name, api_url, api_key, auth_type, caller_number, is_active, last_verified_at, last_error')
+    .select('account_id, provider_name, api_url, api_key, auth_type, caller_number, webhook_secret, is_active, last_verified_at, last_error')
     .eq('account_id', accountId)
     .maybeSingle()
   if (error) throw error
@@ -68,6 +70,7 @@ export async function loadDirectCallingApiConfig(accountId: string): Promise<Dir
     isActive: data.is_active,
     lastVerifiedAt: data.last_verified_at,
     lastError: data.last_error,
+    webhookSecret: data.webhook_secret ? decrypt(data.webhook_secret) : null,
   }
 }
 
