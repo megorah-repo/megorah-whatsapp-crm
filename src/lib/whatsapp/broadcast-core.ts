@@ -56,6 +56,7 @@ export interface CreateBroadcastParams {
   templateLanguage?: string | null;
   recipients: BroadcastRecipientInput[];
   headerMediaUrl?: string | null;
+  scheduledAt?: string | null;
 }
 
 interface PlannedRecipient {
@@ -215,6 +216,7 @@ export async function createBroadcast(
       // resume of this broadcast has no way to reconstruct {{1}}.
       p_template_params: deduped.map((r) => r.params),
       p_header_media_url: params.headerMediaUrl?.trim() || null,
+      p_scheduled_at: params.scheduledAt ? new Date(params.scheduledAt).toISOString() : null,
     }
   );
   if (createErr || !createdRows || createdRows.length === 0) {
