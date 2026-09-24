@@ -12,8 +12,8 @@
 // second fan-out loop: same phone-variant retry, same per-recipient
 // stamping, same trigger-owned counts.
 //
-// What it does NOT do is move the *initial* send server-side. The
-// wizard still owns that; this makes an abandoned one recoverable.
+// The initial dashboard send now uses the same server-side delivery core.
+// This module remains the durable recovery path for capped or interrupted passes.
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
