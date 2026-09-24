@@ -28,6 +28,7 @@ import {
 } from '@/lib/whatsapp/phone-utils';
 import { resolveTemplateRow } from '@/lib/whatsapp/template-body';
 import type { MessageTemplate } from '@/types';
+import type { SendTimeParams } from '@/lib/whatsapp/template-send-builder';
 import { findOrCreateContact } from '@/lib/api/v1/contacts';
 
 /** Thrown by createBroadcast on a caller-visible failure; route maps it. */
@@ -54,6 +55,7 @@ export interface CreateBroadcastParams {
   templateName: string;
   templateLanguage?: string | null;
   recipients: BroadcastRecipientInput[];
+  headerMediaUrl?: string | null;
 }
 
 interface PlannedRecipient {
@@ -72,6 +74,7 @@ export interface BroadcastPlan {
   planned: PlannedRecipient[];
   /** Phones rejected up front (invalid E.164) — counted as failed. */
   rejected: number;
+  messageParams?: SendTimeParams;
 }
 
 const MAX_RECIPIENTS = 1000;
@@ -211,6 +214,7 @@ export async function createBroadcast(
       // Frozen per-recipient params (migration 038) — without them a
       // resume of this broadcast has no way to reconstruct {{1}}.
       p_template_params: deduped.map((r) => r.params),
+      p_header_media_url: params.headerMediaUrl?.trim() || null,
     }
   );
   if (createErr || !createdRows || createdRows.length === 0) {
@@ -239,6 +243,9 @@ export async function createBroadcast(
     templateRow,
     planned,
     rejected,
+    messageParams: params.headerMediaUrl?.trim()
+      ? { headerMediaUrl: params.headerMediaUrl.trim() }
+      : undefined,
   };
 }
 
@@ -274,6 +281,7 @@ export async function deliverBroadcast(
           language: plan.templateLanguage,
           template: plan.templateRow ?? undefined,
           params: recipient.params,
+          messageParams: plan.messageParams,
         });
         sentMessageId = result.messageId;
         lastError = null;
