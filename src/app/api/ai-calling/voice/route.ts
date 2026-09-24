@@ -113,10 +113,13 @@ export async function POST(request: Request) {
       messages: conversationMessages,
     })
 
+    const assistantMessage: ChatMessage = {
+      role: 'assistant',
+      content: result.text,
+    }
     const nextHistory: ChatMessage[] = [
-      ...history,
-      { role: 'user', content: speech },
-      { role: 'assistant', content: result.text },
+      ...conversationMessages,
+      assistantMessage,
     ].slice(-12)
 
     await db
