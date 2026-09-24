@@ -104,7 +104,10 @@ export async function POST(request: Request) {
 
     try {
       if (direct) {
-        const webhookUrl = baseUrl(request) + '/api/ai-calling/direct-api/webhook?session_id=' + encodeURIComponent(session.id) + '&token=' + encodeURIComponent(direct.webhookSecret || '')
+        if (!direct.webhookSecret) {
+          throw new Error('Direct calling webhook protection is not configured. Reconnect the provider.')
+        }
+        const webhookUrl = baseUrl(request) + '/api/ai-calling/direct-api/webhook?session_id=' + encodeURIComponent(session.id) + '&token=' + encodeURIComponent(direct.webhookSecret)
         const providerPayload = {
           to,
           from: actualFrom,
@@ -144,9 +147,6 @@ export async function POST(request: Request) {
 
         const result = extractProviderResult(payload)
         const providerId = result.id || 'direct-' + session.id
-        if (!direct.webhookSecret) {
-          throw new Error('Direct calling webhook protection is not configured. Reconnect the provider.')
-        }
         await db.from('ai_call_sessions').update({
           provider_call_sid: providerId,
           status: result.status,
