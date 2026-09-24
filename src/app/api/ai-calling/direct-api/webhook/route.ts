@@ -16,7 +16,9 @@ function numberValue(value: unknown): number | null {
 
 export async function POST(request: Request) {
   try {
-    const sessionId = new URL(request.url).searchParams.get('session_id')?.trim()
+    const requestUrl = new URL(request.url)
+    const sessionId = requestUrl.searchParams.get('session_id')?.trim()
+    const token = requestUrl.searchParams.get('token')?.trim() || request.headers.get('x-megorah-webhook-secret')?.trim() || ''
     if (!sessionId) return NextResponse.json({ error: 'session_id is required.' }, { status: 400 })
 
     const contentType = request.headers.get('content-type') || ''
