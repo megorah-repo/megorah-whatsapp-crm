@@ -308,10 +308,16 @@ export function WhatsAppConfig() {
       //                         failed; UI shows the specific error
       //                         and a retry path. registration_error
       //                         is human-readable from Meta.
-      if (data.registered === false && data.registration_error) {
+      if (data.success === false && data.setup_error) {
+        const detail =
+          data.subscription_error && data.registration_error
+            ? `Registration: ${data.registration_error} • WABA subscription: ${data.subscription_error}`
+            : data.registration_error
+              ? `Registration: ${data.registration_error}`
+              : `WABA subscription: ${data.subscription_error}`;
         toast.error(
-          `Saved, but Meta couldn't register the number: ${data.registration_error}`,
-          { duration: 12000 },
+          `Saved, but Meta setup is incomplete: ${detail}`,
+          { duration: 15000 },
         );
       } else if (data.registration_skipped) {
         // Credentials saved + verified, but /register was skipped
