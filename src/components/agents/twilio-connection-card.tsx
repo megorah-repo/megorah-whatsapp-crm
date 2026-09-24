@@ -254,7 +254,7 @@ export function TwilioConnectionCard({
                   <Label>Twilio caller number</Label>
                   <Select
                     value={callerNumber || undefined}
-                    onValueChange={onCallerNumberChange}
+                    onValueChange={(value) => value && onCallerNumberChange(value)}
                     disabled={!canEdit || numbers.length === 0}
                   >
                     <SelectTrigger>
