@@ -50,10 +50,12 @@ export function DirectCallingApiCard({
   canEdit,
   callerNumber,
   onCallerNumberChange,
+  onConnected,
 }: {
   canEdit: boolean
   callerNumber: string
   onCallerNumberChange: (value: string) => void
+  onConnected?: () => void
 }) {
   const [providerName, setProviderName] = useState('Direct Calls API')
   const [apiUrl, setApiUrl] = useState('')
@@ -82,6 +84,7 @@ export function DirectCallingApiCard({
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Could not load Direct Calls API settings.')
       setConnected(Boolean(data.configured))
+      if (data.configured) onConnected?.()
       setProviderName(data.provider_name || 'Direct Calls API')
       setApiUrl(data.api_url || '')
       setAuthType(data.auth_type || 'bearer')
@@ -140,6 +143,7 @@ export function DirectCallingApiCard({
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Could not save calling API connection.')
       setConnected(true)
+      onConnected?.()
       setApiKey('')
       if (data.caller_number && data.caller_number !== callerNumber) {
         callerChangeRef.current(data.caller_number)
