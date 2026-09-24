@@ -139,6 +139,21 @@ BEGIN
     RAISE EXCEPTION 'public.claim_calendar_reminders is missing';
   END IF;
 
+  IF to_regclass('public.ai_calling_direct_api_configs') IS NULL THEN
+    RAISE EXCEPTION 'ai_calling_direct_api_configs is missing — direct calling API integration is unavailable';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'ai_call_sessions'
+      AND column_name IN ('duration_seconds', 'cost', 'cost_currency')
+    GROUP BY table_schema, table_name
+    HAVING COUNT(*) = 3
+  ) THEN
+    RAISE EXCEPTION 'ai_call_sessions call metrics columns are missing';
+  END IF;
+
   RAISE NOTICE 'schema verification passed';
 END
 $$;
