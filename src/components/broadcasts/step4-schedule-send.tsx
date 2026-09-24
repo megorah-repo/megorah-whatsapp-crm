@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Send, Loader2, Users, Save } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, Users, Save, CalendarClock } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 interface AudienceConfig {
@@ -28,7 +28,7 @@ interface Step4Props {
   onNameChange: (name: string) => void;
   template: MessageTemplate;
   audience: AudienceConfig;
-  onSend: () => void;
+  onSend: (scheduledAt: string | null) => void;
   onSaveDraft?: () => void;
   onBack: () => void;
   isProcessing: boolean;
@@ -50,6 +50,8 @@ export function Step4ScheduleSend({
   const [showConfirm, setShowConfirm] = useState(false);
   const [estimatedReach, setEstimatedReach] = useState<number>(0);
   const [loadingReach, setLoadingReach] = useState(true);
+  const [sendMode, setSendMode] = useState<'now' | 'schedule'>('now');
+  const [scheduledAt, setScheduledAt] = useState('');
 
   useEffect(() => {
     async function calculateReach() {
@@ -82,6 +84,16 @@ export function Step4ScheduleSend({
 
     calculateReach();
   }, [audience]);
+
+  const scheduleValid = sendMode === 'now' || (
+    Boolean(scheduledAt) && Number.isFinite(new Date(scheduledAt).getTime()) &&
+    new Date(scheduledAt).getTime() > Date.now()
+  );
+
+  const submitAt = () => {
+    if (!scheduleValid) return;
+    onSend(sendMode === 'schedule' ? new Date(scheduledAt).toISOString() : null);
+  };
 
   const audienceLabel =
     audience.type === 'all'
@@ -144,6 +156,52 @@ export function Step4ScheduleSend({
         </div>
       </div>
 
+      <div className="rounded-xl border border-border bg-card/50 p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <CalendarClock className="h-4 w-4 text-primary" />
+          <p className="text-sm font-medium text-foreground">Delivery timing</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setSendMode('now')}
+            className={`rounded-lg border px-3 py-3 text-left text-sm transition ${sendMode === 'now' ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40'}`}
+          >
+            <span className="font-medium">Send now</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">Start the server-side campaign immediately.</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSendMode('schedule')}
+            className={`rounded-lg border px-3 py-3 text-left text-sm transition ${sendMode === 'schedule' ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40'}`}
+          >
+            <span className="font-medium">Schedule</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">Save the campaign and let the server start it later.</span>
+          </button>
+        </div>
+        {sendMode === 'schedule' && (
+          <div className="mt-4 space-y-2">
+            <label htmlFor="broadcast-scheduled-at" className="block text-sm font-medium text-foreground">
+              Date &amp; time
+            </label>
+            <Input
+              id="broadcast-scheduled-at"
+              type="datetime-local"
+              value={scheduledAt}
+              min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+              onChange={(e) => setScheduledAt(e.target.value)}
+              disabled={isProcessing}
+            />
+            <p className="text-xs leading-5 text-muted-foreground">
+              Uses your browser&apos;s local time. On Vercel Hobby, scheduled Cron jobs are not minute-precise; minute-level campaign scheduling requires a plan with higher cron precision.
+            </p>
+            {!scheduleValid && scheduledAt && (
+              <p className="text-xs font-medium text-destructive">Choose a future date and time.</p>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Processing overlay */}
       {isProcessing && (
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
@@ -191,13 +249,13 @@ export function Step4ScheduleSend({
           <DialogTrigger
             render={
               <Button
-                disabled={!name.trim() || isProcessing}
+                disabled={!name.trim() || isProcessing || !scheduleValid}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               />
             }
           >
             <Send className="h-4 w-4" />
-            {t('scheduleSend.sendNow')}
+            {sendMode === 'schedule' ? 'Schedule Broadcast' : t('scheduleSend.sendNow')}
           </DialogTrigger>
           <DialogContent className="border-border bg-popover sm:max-w-md">
             <DialogHeader>
@@ -207,7 +265,9 @@ export function Step4ScheduleSend({
                 <span className="font-medium text-popover-foreground">{estimatedReach.toLocaleString()}</span>{' '}
                 contacts using the{' '}
                 <span className="font-medium text-popover-foreground">{template.name}</span> template.
-                This action cannot be undone.
+                {sendMode === 'schedule'
+                  ? 'The campaign will be saved and started by the server at the selected time.'
+                  : 'This action cannot be undone.'}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
@@ -221,12 +281,12 @@ export function Step4ScheduleSend({
               <Button
                 onClick={() => {
                   setShowConfirm(false);
-                  onSend();
+                  submitAt();
                 }}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 <Send className="h-4 w-4" />
-                {t('scheduleSend.sendNow')}
+                {sendMode === 'schedule' ? 'Schedule Broadcast' : t('scheduleSend.sendNow')}
               </Button>
             </DialogFooter>
           </DialogContent>
