@@ -89,6 +89,7 @@ export async function saveDirectCallingApiConfig(args: {
     provider_name: args.providerName?.trim() || 'Direct Calls API',
     api_url: args.apiUrl.trim(),
     api_key: encrypt(args.apiKey),
+    webhook_secret: encrypt(randomBytes(32).toString('hex')),
     auth_type: args.authType ?? 'bearer',
     caller_number: args.callerNumber?.trim() || null,
     is_active: true,
