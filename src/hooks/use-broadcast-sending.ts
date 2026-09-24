@@ -3,10 +3,6 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
-import {
-  BATCH_SEND_ATTEMPTS,
-  batchRetryDelayMs,
-} from '@/lib/broadcast-retry';
 import { normalizeKey } from '@/lib/contacts/dedupe';
 import { Contact, MessageTemplate } from '@/types';
 
@@ -58,27 +54,6 @@ interface UseBroadcastSendingReturn {
   createAndSendBroadcast: (payload: BroadcastPayload) => Promise<string>;
   isProcessing: boolean;
   progress: number;
-}
-
-/**
- * Meta rate-limit buffer. 10 per batch + 1 s pause matches the spec
- * and keeps us comfortably under Meta's per-phone-number messaging
- * rate so a large broadcast never trips the upstream limiter.
- *
- * Note this shape when touching `RATE_LIMITS.broadcast`: a campaign is
- * many calls to `/api/whatsapp/broadcast`, not one. A 1 000-recipient
- * send is ~100 calls over several minutes, and a bucket sized for
- * "one call per campaign" throttles most of it away (issue #472).
- */
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-interface BroadcastApiResult {
-  phone: string;
-  status: 'sent' | 'failed';
-  whatsapp_message_id?: string;
-  error?: string;
 }
 
 /** contactId → (customFieldId → value). */
