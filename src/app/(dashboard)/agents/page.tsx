@@ -22,7 +22,7 @@ export default function AgentsPage() {
   const canViewUsage = accountRole ? canEditSettings(accountRole) : false;
   const canEdit = canViewUsage;
   const [tab, setTab] = useState<Tab>('playground');
-  const [decided, setDecided] = useState(true);
+  const decided = true;
 
   // Land first-time users on Setup, returning users on the Playground.
   useEffect(() => {
