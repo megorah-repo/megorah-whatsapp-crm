@@ -51,6 +51,7 @@ interface BroadcastPayload {
    * falls back to the template's stored URL only when this is empty.
    */
   headerMediaUrl?: string;
+  scheduledAt?: string | null;
 }
 
 interface UseBroadcastSendingReturn {
@@ -391,6 +392,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
           template_language: payload.template.language ?? 'en_US',
           recipients,
           header_media_url: payload.headerMediaUrl?.trim() || undefined,
+          scheduled_at: payload.scheduledAt || undefined,
         }),
       });
 
