@@ -267,3 +267,103 @@ describe("sendInteractiveList — validation", () => {
     });
   });
 });
+
+
+describe("verifyWhatsAppSetup", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("verifies phone, WABA, and phone-to-WABA ownership", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        calls.push(url);
+        if (url.includes("/waba-1?fields=id,name")) {
+          return new Response(
+            JSON.stringify({ id: "waba-1", name: "Demo Business" }),
+            { status: 200 },
+          );
+        }
+        if (url.includes("/phone-1?fields=id,display_phone_number")) {
+          return new Response(
+            JSON.stringify({
+              id: "phone-1",
+              display_phone_number: "+15551234567",
+              verified_name: "Demo Business",
+              quality_rating: "GREEN",
+            }),
+            { status: 200 },
+          );
+        }
+        if (url.includes("/waba-1/phone_numbers")) {
+          return new Response(
+            JSON.stringify({
+              data: [
+                {
+                  id: "phone-1",
+                  display_phone_number: "+15551234567",
+                  verified_name: "Demo Business",
+                },
+              ],
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify({ error: { message: "unexpected URL" } }), {
+          status: 500,
+        });
+      }),
+    );
+
+    const { verifyWhatsAppSetup } = await import("./meta-api");
+    const result = await verifyWhatsAppSetup({
+      phoneNumberId: "phone-1",
+      wabaId: "waba-1",
+      accessToken: "token-1",
+    });
+
+    expect(result.phone.id).toBe("phone-1");
+    expect(result.waba.id).toBe("waba-1");
+    expect(calls).toHaveLength(3);
+  });
+
+  it("rejects a phone number that belongs to a different WABA", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/waba-1?fields=id,name")) {
+          return new Response(
+            JSON.stringify({ id: "waba-1", name: "Demo Business" }),
+            { status: 200 },
+          );
+        }
+        if (url.includes("/phone-1?fields=id,display_phone_number")) {
+          return new Response(
+            JSON.stringify({
+              id: "phone-1",
+              display_phone_number: "+15551234567",
+              verified_name: "Demo Business",
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      }),
+    );
+
+    const { verifyWhatsAppSetup } = await import("./meta-api");
+    await expect(
+      verifyWhatsAppSetup({
+        phoneNumberId: "phone-1",
+        wabaId: "waba-1",
+        accessToken: "token-1",
+      }),
+    ).rejects.toThrow(/not connected to WABA/);
+  });
+});
