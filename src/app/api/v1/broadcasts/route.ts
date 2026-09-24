@@ -70,6 +70,7 @@ export async function POST(request: Request) {
           : null,
       recipients: recipients.map((r) => ({
         to: typeof r?.to === 'string' ? r.to : '',
+        contactId: typeof r?.contact_id === 'string' ? r.contact_id : undefined,
         params: Array.isArray(r?.params) ? r.params : undefined,
       })),
       headerMediaUrl:
