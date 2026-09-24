@@ -363,6 +363,7 @@ export function WhatsAppConfig() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             phone_number_id: phoneNumberId.trim(),
+            waba_id: wabaId.trim(),
             access_token: accessToken.trim(),
           }),
         });
@@ -380,9 +381,11 @@ export function WhatsAppConfig() {
         setStatusMessage('');
         setCredentialsTested(true);
         toast.success(
-          payload.phone_info?.verified_name
-            ? `Connected to ${payload.phone_info.verified_name}`
-            : 'API connection successful'
+          payload.phone_info?.verified_name && payload.waba_info?.name
+            ? `Meta verified: ${payload.phone_info.verified_name} • ${payload.waba_info.name}`
+            : payload.phone_info?.verified_name
+              ? `Connected to ${payload.phone_info.verified_name}`
+              : 'Meta credentials verified successfully'
         );
       } else {
         setConnectionStatus('disconnected');
@@ -929,6 +932,7 @@ export function WhatsAppConfig() {
             disabled={
               testing ||
               !phoneNumberId.trim() ||
+              !wabaId.trim() ||
               (config
                 ? tokenEdited && !(accessToken.trim() && accessToken !== MASKED_TOKEN)
                 : !(tokenEdited && accessToken.trim() && accessToken !== MASKED_TOKEN))
