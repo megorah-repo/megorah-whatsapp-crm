@@ -104,10 +104,13 @@ export async function POST(request: Request) {
       .filter(Boolean)
       .join('\\n\\n')
 
+    const userMessage: ChatMessage = { role: 'user', content: speech }
+    const conversationMessages: ChatMessage[] = [...history, userMessage]
+
     const result = await generateReply({
       config: aiConfig,
       systemPrompt,
-      messages: [...history, { role: 'user', content: speech } as ChatMessage],
+      messages: conversationMessages,
     })
 
     const nextHistory: ChatMessage[] = [
