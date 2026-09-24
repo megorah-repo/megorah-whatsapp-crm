@@ -349,6 +349,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
 
       const recipients = contacts
         .map((contact) => ({
+          contact_id: contact.id,
           phone: contact.phone,
           params: resolveVariables(
             payload.variables,
