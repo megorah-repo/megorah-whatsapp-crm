@@ -1,40 +1,45 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import { Bot, Sparkles, Settings2, BarChart3, PhoneCall } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { AiPlayground } from '@/components/agents/ai-playground';
-import { AiUsageCard } from '@/components/agents/ai-usage';
-import { AiCallingPanel } from '@/components/agents/ai-calling-panel';
-import { AiConfig } from '@/components/settings/ai-config';
+const AiPlayground = dynamic(() => import('@/components/agents/ai-playground').then((mod) => mod.AiPlayground), { loading: () => <PageSkeleton />, ssr: false });
+const AiUsageCard = dynamic(() => import('@/components/agents/ai-usage').then((mod) => mod.AiUsageCard), { loading: () => <PageSkeleton />, ssr: false });
+const AiCallingPanel = dynamic(() => import('@/components/agents/ai-calling-panel').then((mod) => mod.AiCallingPanel), { loading: () => <PageSkeleton />, ssr: false });
+const AiConfig = dynamic(() => import('@/components/settings/ai-config').then((mod) => mod.AiConfig), { loading: () => <PageSkeleton />, ssr: false });
 import { useAuth } from '@/hooks/use-auth';
 import { canEditSettings } from '@/lib/auth/roles';
 
 type Tab = 'playground' | 'setup' | 'calling' | 'usage';
+
+function PageSkeleton() {
+  return <div className="min-h-[420px] animate-pulse rounded-xl border border-border bg-card" aria-label="Loading AI Agent" />;
+}
 
 export default function AgentsPage() {
   const { accountRole } = useAuth();
   const canViewUsage = accountRole ? canEditSettings(accountRole) : false;
   const canEdit = canViewUsage;
   const [tab, setTab] = useState<Tab>('playground');
-  const [decided, setDecided] = useState(false);
+  const [decided, setDecided] = useState(true);
 
   // Land first-time users on Setup, returning users on the Playground.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const loadLandingTab = async () => {
       try {
         const res = await fetch('/api/ai/config');
         const data = await res.json().catch(() => ({}));
         if (!cancelled) setTab(data?.configured ? 'playground' : 'setup');
       } catch {
         if (!cancelled) setTab('setup');
-      } finally {
-        if (!cancelled) setDecided(true);
       }
-    })();
+    };
+    const defer = window.setTimeout(() => { void loadLandingTab() }, 0);
     return () => {
       cancelled = true;
+      window.clearTimeout(defer);
     };
   }, []);
 
