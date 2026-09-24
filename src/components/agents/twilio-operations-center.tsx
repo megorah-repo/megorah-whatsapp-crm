@@ -473,7 +473,7 @@ export function TwilioOperationsCenter({
                   <Label>Active Twilio caller number</Label>
                   <Select
                     value={callerNumber || undefined}
-                    onValueChange={onCallerNumberChange}
+                    onValueChange={(value) => value && onCallerNumberChange(value)}
                     disabled={!canEdit || numbers.length === 0}
                   >
                     <SelectTrigger>
@@ -652,7 +652,7 @@ export function TwilioOperationsCenter({
                     className="w-[160px]"
                     aria-label="Call history date"
                   />
-                  <Select value={callStatus} onValueChange={setCallStatus}>
+                  <Select value={callStatus} onValueChange={(value) => setCallStatus(value ?? 'all')}>
                     <SelectTrigger className="w-[150px]">
                       <SelectValue />
                     </SelectTrigger>
