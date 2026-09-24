@@ -1,5 +1,7 @@
+import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
+import { loadDirectCallingApiConfig } from '@/lib/ai-calling/direct-api-config'
 
 function toObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? value as Record<string, unknown> : {}
@@ -46,6 +48,22 @@ export async function POST(request: Request) {
     }
 
     const db = createServiceRoleClient()
+    const { data: session, error: sessionError } = await db
+      .from('ai_call_sessions')
+      .select('account_id')
+      .eq('id', sessionId)
+      .eq('provider', 'direct-api')
+      .maybeSingle()
+    if (sessionError || !session) return NextResponse.json({ error: 'Call session not found.' }, { status: 404 })
+
+    const config = await loadDirectCallingApiConfig(session.account_id)
+    if (!config?.webhookSecret || !token) return NextResponse.json({ error: 'Forbidden.' }, { status: 403 })
+    const expected = Buffer.from(config.webhookSecret)
+    const presented = Buffer.from(token)
+    if (expected.length !== presented.length || !timingSafeEqual(expected, presented)) {
+      return NextResponse.json({ error: 'Forbidden.' }, { status: 403 })
+    }
+
     const { error } = await db.from('ai_call_sessions')
       .update(patch)
       .eq('id', sessionId)
