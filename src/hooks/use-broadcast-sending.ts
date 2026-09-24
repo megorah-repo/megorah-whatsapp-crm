@@ -332,6 +332,11 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       if (contacts.length === 0) {
         throw new Error('No contacts found for this audience.');
       }
+      if (contacts.length > 1000) {
+        throw new Error(
+          'A broadcast can contain up to 1,000 recipients. Narrow the audience or split the campaign into smaller sends.',
+        );
+      }
 
       // Resolve personalization once in the browser, then hand the
       // complete recipient snapshot to the server. The server persists
