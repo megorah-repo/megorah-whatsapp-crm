@@ -22,6 +22,7 @@ export async function GET() {
       last_verified_at: config?.lastVerifiedAt ?? null,
       last_error: config?.lastError ?? null,
       has_api_key: Boolean(config?.apiKey),
+      webhook_configured: Boolean(config?.webhookSecret),
     })
   } catch (err) {
     return toErrorResponse(err)
