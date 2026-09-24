@@ -33,6 +33,19 @@ export async function POST(request: Request) {
     const name = typeof body.name === 'string' ? body.name.trim() : null
     const headerMediaUrl =
       typeof body.header_media_url === 'string' ? body.header_media_url.trim() : null
+    const scheduledAtRaw =
+      typeof body.scheduled_at === 'string' ? body.scheduled_at.trim() : ''
+    const scheduledAt = scheduledAtRaw ? new Date(scheduledAtRaw) : null
+
+    if (
+      scheduledAtRaw &&
+      (!scheduledAt || !Number.isFinite(scheduledAt.getTime()) || scheduledAt.getTime() <= Date.now())
+    ) {
+      return NextResponse.json(
+        { error: 'scheduled_at must be a valid future date/time.' },
+        { status: 400 },
+      )
+    }
 
     if (!templateName || recipients.length === 0) {
       return NextResponse.json(
