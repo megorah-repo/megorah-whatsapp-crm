@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { verifyPhoneNumber } from '@/lib/whatsapp/meta-api'
+import { verifyWhatsAppSetup } from '@/lib/whatsapp/meta-api'
 
 /**
  * POST /api/whatsapp/config/test
@@ -29,8 +29,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
 
-    const payload = body as {
+      const payload = body as {
       phone_number_id?: unknown
+      waba_id?: unknown
       access_token?: unknown
     }
 
@@ -38,28 +39,37 @@ export async function POST(request: Request) {
       typeof payload.phone_number_id === 'string'
         ? payload.phone_number_id.trim()
         : ''
+    const wabaId =
+      typeof payload.waba_id === 'string' ? payload.waba_id.trim() : ''
     const accessToken =
       typeof payload.access_token === 'string'
         ? payload.access_token.trim()
         : ''
 
-    if (!phoneNumberId || !accessToken) {
+    if (!phoneNumberId || !wabaId || !accessToken) {
       return NextResponse.json(
-        { error: 'Phone Number ID and Access Token are required.' },
+        { error: 'Phone Number ID, WABA ID, and Access Token are required.' },
         { status: 400 }
       )
     }
 
     try {
-      const phoneInfo = await verifyPhoneNumber({
+      const result = await verifyWhatsAppSetup({
         phoneNumberId,
+        wabaId,
         accessToken,
       })
 
       return NextResponse.json({
         success: true,
         connected: true,
-        phone_info: phoneInfo,
+        checks: {
+          phone_number: true,
+          waba: true,
+          phone_belongs_to_waba: true,
+        },
+        phone_info: result.phone,
+        waba_info: result.waba,
       })
     } catch (error) {
       const message =
