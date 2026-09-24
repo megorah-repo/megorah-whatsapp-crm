@@ -125,8 +125,8 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
     const validPhone = (value: string) => /^\+[1-9]\d{7,14}$/.test(normalize(value));
     const checks = [
       {
-        label: 'AI agent configured',
-        ready: true,
+        label: 'Calling provider connected',
+        ready: Boolean(settings.businessNumber.trim()),
       },
       {
         label: 'Caller identity',
@@ -729,7 +729,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                 <div>
                   <p className="text-sm font-medium">Provider connection</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    Test calls use Twilio for phone connectivity and your saved AI provider for the conversation. Make sure the caller number is a Twilio number or verified caller ID.
+                    When a Direct Calls API is connected, Test Call sends the request there and does not require OpenAI, Anthropic or Gemini. Twilio remains the fallback path when no Direct Calls API is connected.
                   </p>
                   <div className="mt-3 flex items-center gap-2 text-xs font-medium text-primary">
                     <UserRound className="h-3.5 w-3.5" />
