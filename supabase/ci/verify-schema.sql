@@ -157,6 +157,15 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1
     FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'ai_calling_direct_api_configs'
+      AND column_name = 'webhook_secret'
+  ) THEN
+    RAISE EXCEPTION 'ai_calling_direct_api_configs.webhook_secret is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'broadcasts'
       AND column_name = 'header_media_url'
   ) THEN
