@@ -42,6 +42,78 @@ async function throwMetaError(response: Response, fallback: string): Promise<nev
 // Phone number / account
 // ============================================================
 
+export interface MetaWabaInfo {
+  id: string
+  name?: string
+}
+
+export interface MetaWabaPhone {
+  id: string
+  display_phone_number?: string
+  verified_name?: string
+  quality_rating?: string
+}
+
+export interface VerifyWhatsAppSetupArgs {
+  phoneNumberId: string
+  wabaId: string
+  accessToken: string
+}
+
+/**
+ * Validate the complete Meta credential set before saving:
+ * 1. token can read the phone number;
+ * 2. token can read the WABA;
+ * 3. the supplied Phone Number ID actually belongs to the supplied WABA.
+ *
+ * This prevents the old false-positive state where the phone token was
+ * valid but the WABA ID was wrong or inaccessible, so webhook subscription
+ * silently failed later.
+ */
+export async function verifyWhatsAppSetup(
+  args: VerifyWhatsAppSetupArgs,
+): Promise<{ phone: MetaPhoneInfo; waba: MetaWabaInfo }> {
+  const { phoneNumberId, wabaId, accessToken } = args
+
+  const wabaResponse = await fetch(
+    `${META_API_BASE}/${wabaId}?fields=id,name`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  )
+  if (!wabaResponse.ok) {
+    await throwMetaError(
+      wabaResponse,
+      `Meta rejected the WABA ID (${wabaId})`,
+    )
+  }
+  const waba = (await wabaResponse.json()) as MetaWabaInfo
+
+  const phone = await verifyPhoneNumber({ phoneNumberId, accessToken })
+
+  const phonesResponse = await fetch(
+    `${META_API_BASE}/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating&limit=100`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  )
+  if (!phonesResponse.ok) {
+    await throwMetaError(
+      phonesResponse,
+      `Meta could not read phone numbers for WABA ${wabaId}`,
+    )
+  }
+
+  const phones = (await phonesResponse.json()) as { data?: MetaWabaPhone[] }
+  const belongsToWaba = (phones.data ?? []).some(
+    (phoneRow) => phoneRow.id === phoneNumberId,
+  )
+
+  if (!belongsToWaba) {
+    throw new Error(
+      `Phone Number ID ${phoneNumberId} is not connected to WABA ${wabaId}. Copy both IDs from the same Meta WhatsApp Business Account.`,
+    )
+  }
+
+  return { phone, waba }
+}
+
 export interface VerifyPhoneNumberArgs {
   phoneNumberId: string
   accessToken: string
