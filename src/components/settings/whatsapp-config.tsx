@@ -76,6 +76,10 @@ export function WhatsAppConfig() {
   const [verifyToken, setVerifyToken] = useState('');
   const [pin, setPin] = useState('');
   const [tokenEdited, setTokenEdited] = useState(false);
+  // A first-time setup must successfully validate the credentials before
+  // Save Configuration is allowed. This prevents users from saving a typo
+  // and then wondering why the connection is broken.
+  const [credentialsTested, setCredentialsTested] = useState(false);
 
   // Inbound-media mirror (issue #466). Unlike everything else on this
   // page it is NOT part of handleSave: that path insists on re-entering
@@ -138,6 +142,7 @@ export function WhatsAppConfig() {
         setVerifyToken('');
         setPin('');
         setTokenEdited(false);
+        setCredentialsTested(false);
         // Undefined on a row read before migration 039 — treat that as
         // on, matching the webhook's own default.
         setMirrorMedia(data.mirror_inbound_media !== false);
@@ -149,6 +154,7 @@ export function WhatsAppConfig() {
         setVerifyToken('');
         setPin('');
         setTokenEdited(false);
+        setCredentialsTested(false);
         setMirrorMedia(true);
       }
       // Clear any stale probe result when reloading the row.
@@ -175,6 +181,7 @@ export function WhatsAppConfig() {
         }
       } else {
         setConnectionStatus('disconnected');
+        setCredentialsTested(false);
         setResetReason(null);
         setStatusMessage('');
       }
@@ -233,6 +240,16 @@ export function WhatsAppConfig() {
     }
     if (!config && (!accessToken.trim() || !tokenEdited)) {
       toast.error('Access Token is required for initial setup');
+      return;
+    }
+
+    if (!config && !credentialsTested) {
+      toast.error('Please click “Test API Connection” successfully before saving.');
+      return;
+    }
+
+    if (!config && !verifyToken.trim()) {
+      toast.error('Create a Webhook Verify Token before saving. Use “Generate” below.');
       return;
     }
 
@@ -355,6 +372,7 @@ export function WhatsAppConfig() {
         setConnectionStatus('connected');
         setResetReason(null);
         setStatusMessage('');
+        setCredentialsTested(true);
         toast.success(
           payload.phone_info?.verified_name
             ? `Connected to ${payload.phone_info.verified_name}`
@@ -649,7 +667,10 @@ export function WhatsAppConfig() {
               <Input
                 placeholder="e.g. 100234567890123"
                 value={phoneNumberId}
-                onChange={(e) => setPhoneNumberId(e.target.value)}
+                onChange={(e) => {
+                  setPhoneNumberId(e.target.value);
+                  setCredentialsTested(false);
+                }}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
               />
             </div>
@@ -674,11 +695,13 @@ export function WhatsAppConfig() {
                   onChange={(e) => {
                     setAccessToken(e.target.value);
                     setTokenEdited(true);
+                    setCredentialsTested(false);
                   }}
                   onFocus={() => {
                     if (accessToken === MASKED_TOKEN) {
                       setAccessToken('');
                       setTokenEdited(true);
+                      setCredentialsTested(false);
                     }
                   }}
                   className="bg-muted border-border text-foreground placeholder:text-muted-foreground pr-10"
@@ -699,15 +722,49 @@ export function WhatsAppConfig() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-muted-foreground">{t('webhookVerifyToken')}</Label>
-              <Input
-                placeholder={t('webhookVerifyTokenPlaceholder')}
-                value={verifyToken}
-                onChange={(e) => setVerifyToken(e.target.value)}
-                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
-              />
+              <div className="flex items-center justify-between gap-3">
+                <Label className="text-muted-foreground">{t('webhookVerifyToken')}</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const token =
+                      typeof crypto !== 'undefined' && crypto.randomUUID
+                        ? `megorah_${crypto.randomUUID().replace(/-/g, '')}`
+                        : `megorah_${Math.random().toString(36).slice(2)}`;
+                    setVerifyToken(token);
+                    toast.success('Webhook Verify Token generated. Use the same token in Meta.');
+                  }}
+                  className="h-7 px-2 text-xs text-primary hover:text-primary"
+                >
+                  Generate
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder={t('webhookVerifyTokenPlaceholder')}
+                  value={verifyToken}
+                  onChange={(e) => setVerifyToken(e.target.value)}
+                  className="bg-muted border-border text-foreground placeholder:text-muted-foreground font-mono"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  disabled={!verifyToken}
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(verifyToken);
+                    toast.success('Webhook Verify Token copied');
+                  }}
+                  className="shrink-0 border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                  aria-label="Copy Webhook Verify Token"
+                >
+                  <Copy className="size-4" />
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
-                {t('webhookVerifyTokenHint')}
+                {t('webhookVerifyTokenHint')} For first-time setup, generate one here, then paste this exact value into Meta.
               </p>
             </div>
 
@@ -801,8 +858,51 @@ export function WhatsAppConfig() {
           </Card>
         )}
 
+        {/* First-time setup guide */}
+        {!config && (
+          <Card className="border-primary/30 bg-primary/[0.04]">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-foreground text-base">Connect WhatsApp in 3 steps</CardTitle>
+              <CardDescription className="text-muted-foreground">
+                Set it up once here. The CRM will test the Meta credentials before it lets you save.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-md border border-border bg-card/60 p-3">
+                  <div className="mb-1 flex items-center gap-2 text-sm font-medium text-foreground">
+                    <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">1</span>
+                    Get Meta credentials
+                  </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    From Meta WhatsApp API Setup, copy Phone Number ID, WABA ID and your access token.
+                  </p>
+                </div>
+                <div className="rounded-md border border-border bg-card/60 p-3">
+                  <div className="mb-1 flex items-center gap-2 text-sm font-medium text-foreground">
+                    <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">2</span>
+                    Test
+                  </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Paste the Phone Number ID and token above, then click Test API Connection. Nothing is saved by the test.
+                  </p>
+                </div>
+                <div className="rounded-md border border-border bg-card/60 p-3">
+                  <div className="mb-1 flex items-center gap-2 text-sm font-medium text-foreground">
+                    <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">3</span>
+                    Save & webhook
+                  </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Generate a verify token, save the config, then use the shown webhook URL + same verify token in Meta.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Action Buttons */}
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             onClick={handleSave}
             disabled={saving}
@@ -823,7 +923,9 @@ export function WhatsAppConfig() {
             disabled={
               testing ||
               !phoneNumberId.trim() ||
-              (!config && !(tokenEdited && accessToken.trim() && accessToken !== MASKED_TOKEN))
+              (config
+                ? tokenEdited && !(accessToken.trim() && accessToken !== MASKED_TOKEN)
+                : !(tokenEdited && accessToken.trim() && accessToken !== MASKED_TOKEN))
             }
             className="border-border text-muted-foreground hover:text-foreground hover:bg-muted"
           >
