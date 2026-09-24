@@ -47,6 +47,8 @@ export class BroadcastError extends Error {
 export interface BroadcastRecipientInput {
   /** E.164 phone. */
   to: string;
+  /** Existing account-scoped contact id when already resolved by the dashboard. */
+  contactId?: string;
   /** Positional body params for the template ({{1}}, {{2}}…). */
   params?: string[];
 }
@@ -156,21 +158,59 @@ export async function createBroadcast(
   }
   const templateRow = resolvedTemplate.row;
 
-  // Resolve each recipient to a contact. Invalid phones are dropped
-  // (counted as rejected) rather than aborting the whole broadcast.
+  // Resolve recipients to contacts. Dashboard-created campaigns pass
+  // account-scoped contact ids, so those resolve in one bulk query instead
+  // of 1,000 sequential find-or-create calls. Public API callers may still
+  // send raw phones and use the existing find-or-create fallback.
   const resolved: { contactId: string; phone: string; params: string[] }[] = [];
   let rejected = 0;
+
+  const contactIds = [...new Set(
+    recipients
+      .map((r) => r.contactId)
+      .filter((id): id is string => typeof id === 'string' && id.trim().length > 0),
+  )];
+  const contactById = new Map<string, { id: string; phone: string | null }>();
+
+  if (contactIds.length > 0) {
+    const { data: bulkContacts, error: bulkContactsError } = await db
+      .from('contacts')
+      .select('id, phone')
+      .eq('account_id', accountId)
+      .in('id', contactIds);
+
+    if (bulkContactsError) {
+      throw new BroadcastError('internal', 'Failed to resolve broadcast contacts', 500);
+    }
+
+    for (const contact of bulkContacts ?? []) contactById.set(contact.id, contact);
+  }
+
   for (const r of recipients) {
-    const sanitized = sanitizePhoneForMeta(typeof r.to === 'string' ? r.to : '');
+    let sanitized = sanitizePhoneForMeta(typeof r.to === 'string' ? r.to : '');
+
+    if (r.contactId) {
+      const contact = contactById.get(r.contactId);
+      if (!contact) {
+        rejected++;
+        continue;
+      }
+      sanitized = sanitizePhoneForMeta(contact.phone ?? '');
+    }
+
     if (!isValidE164(sanitized)) {
       rejected++;
       continue;
     }
-    const { id } = await findOrCreateContact(db, accountId, auditUserId, {
-      phone: sanitized,
-    });
+
+    let contactId = r.contactId;
+    if (!contactId) {
+      const created = await findOrCreateContact(db, accountId, auditUserId, { phone: sanitized });
+      contactId = created.id;
+    }
+
     resolved.push({
-      contactId: id,
+      contactId,
       phone: sanitized,
       params: Array.isArray(r.params)
         ? r.params.filter((p): p is string => typeof p === 'string')
