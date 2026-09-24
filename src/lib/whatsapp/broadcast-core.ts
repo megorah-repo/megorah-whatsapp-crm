@@ -30,6 +30,7 @@ import { resolveTemplateRow } from '@/lib/whatsapp/template-body';
 import type { MessageTemplate } from '@/types';
 import type { SendTimeParams } from '@/lib/whatsapp/template-send-builder';
 import { findOrCreateContact } from '@/lib/api/v1/contacts';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
 
 /** Thrown by createBroadcast on a caller-visible failure; route maps it. */
 export class BroadcastError extends Error {
@@ -212,7 +213,12 @@ export async function createBroadcast(
   // an orphaned campaign that looked like it was sending but had no
   // delivery plan (issue #370). The function body is atomic, so a recipient
   // failure now rolls the parent back and nothing orphaned survives.
-  const { data: createdRows, error: createErr } = await db.rpc(
+  // The RPC is intentionally service-role only because it is SECURITY DEFINER.
+  // Auth has already been established by the caller (dashboard role or API key),
+  // and all earlier reads/writes are account-scoped. Keeping the RPC off the
+  // authenticated role prevents arbitrary users from invoking it directly.
+  const writerDb = createServiceRoleClient()
+  const { data: createdRows, error: createErr } = await writerDb.rpc(
     'create_broadcast_with_recipients',
     {
       p_account_id: accountId,
