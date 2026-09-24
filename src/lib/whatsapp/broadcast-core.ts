@@ -111,6 +111,16 @@ export async function createBroadcast(
       400
     );
   }
+  if (params.scheduledAt) {
+    const scheduled = new Date(params.scheduledAt);
+    if (!Number.isFinite(scheduled.getTime()) || scheduled.getTime() <= Date.now()) {
+      throw new BroadcastError(
+        'bad_request',
+        "'scheduled_at' must be a valid future date/time",
+        400,
+      );
+    }
+  }
 
   // Config (fail fast + provides the audit trail owner already resolved
   // by the caller). Meta send needs phone_number_id + decrypted token.
