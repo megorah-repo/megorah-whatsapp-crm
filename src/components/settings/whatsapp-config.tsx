@@ -324,10 +324,34 @@ export function WhatsAppConfig() {
   async function handleTestConnection() {
     try {
       setTesting(true);
-      const res = await fetch('/api/whatsapp/config', { method: 'GET' });
-      const payload = await res.json();
+      setStatusMessage('');
 
-      if (payload.connected) {
+      // New/unsaved configuration: test the credentials currently in
+      // the form without requiring a save first.
+      const hasEnteredToken =
+        tokenEdited &&
+        accessToken.trim() &&
+        accessToken.trim() !== MASKED_TOKEN;
+
+      let res: Response;
+      if (phoneNumberId.trim() && hasEnteredToken) {
+        res = await fetch('/api/whatsapp/config/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone_number_id: phoneNumberId.trim(),
+            access_token: accessToken.trim(),
+          }),
+        });
+      } else {
+        // Existing saved configuration: use the encrypted server-side
+        // token so the user never has to expose it again in the browser.
+        res = await fetch('/api/whatsapp/config', { method: 'GET' });
+      }
+
+      const payload = await res.json().catch(() => ({}));
+
+      if (res.ok && payload.connected) {
         setConnectionStatus('connected');
         setResetReason(null);
         setStatusMessage('');
@@ -338,14 +362,27 @@ export function WhatsAppConfig() {
         );
       } else {
         setConnectionStatus('disconnected');
-        setResetReason(payload.needs_reset ? 'token_corrupted' : payload.reason === 'meta_api_error' ? 'meta_api_error' : null);
-        setStatusMessage(payload.message || '');
-        toast.error(payload.message || 'API connection failed');
+        setResetReason(
+          payload.needs_reset
+            ? 'token_corrupted'
+            : payload.reason === 'meta_api_error'
+              ? 'meta_api_error'
+              : null
+        );
+        const message =
+          payload.error ||
+          payload.message ||
+          'API connection failed. Check the Phone Number ID and Access Token.';
+        setStatusMessage(message);
+        toast.error(message, { duration: 10000 });
       }
     } catch (err) {
       console.error('Test connection error:', err);
       setConnectionStatus('disconnected');
-      toast.error('Connection test failed. Check network and try again.');
+      const message =
+        'Connection test failed. Check the CRM URL, network connection, and credentials.';
+      setStatusMessage(message);
+      toast.error(message);
     } finally {
       setTesting(false);
     }
@@ -783,7 +820,11 @@ export function WhatsAppConfig() {
           <Button
             variant="outline"
             onClick={handleTestConnection}
-            disabled={testing || !config}
+            disabled={
+              testing ||
+              !phoneNumberId.trim() ||
+              (!config && !(tokenEdited && accessToken.trim() && accessToken !== MASKED_TOKEN))
+            }
             className="border-border text-muted-foreground hover:text-foreground hover:bg-muted"
           >
             {testing ? (
