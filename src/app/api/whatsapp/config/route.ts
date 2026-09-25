@@ -355,13 +355,21 @@ export async function POST(request: Request) {
     // store the credentials and the error so the UI can guide the
     // user through a retry.
     const setupError = registrationError ?? subscriptionError
+    // Webhook verification is app-level in Meta. When a global token is
+    // configured, persist the same encrypted value on every workspace so
+    // legacy diagnostics and older clients remain compatible while new
+    // onboarding no longer needs per-customer Meta webhook setup.
+    const globalVerifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN?.trim()
+
     const baseRow = {
       phone_number_id,
       waba_id,
       access_token: encryptedAccessToken,
-      verify_token: verify_token
-        ? encryptedVerifyToken
-        : existing?.verify_token ?? null,
+      verify_token: globalVerifyToken
+        ? encrypt(globalVerifyToken)
+        : verify_token
+          ? encryptedVerifyToken
+          : existing?.verify_token ?? null,
       status: setupError ? 'disconnected' : 'connected',
       connected_at: setupError ? null : new Date().toISOString(),
       registered_at: setupError ? null : registeredAt,
