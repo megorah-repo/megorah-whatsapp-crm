@@ -50,7 +50,7 @@ export async function DELETE(
     const db = createServiceRoleClient()
     const { data: campaign } = await db.from('ai_call_campaigns').select('id,status').eq('id',campaignId).eq('account_id',accountId).maybeSingle()
     if (!campaign) return NextResponse.json({ error:'Campaign not found.' },{status:404})
-    if (['running','placing','in-progress'].includes(campaign.status)) return NextResponse.json({ error:'Pause the campaign before deleting it.' },{status:400})
+    if (campaign.status === 'running') return NextResponse.json({ error:'Pause the campaign before deleting it.' },{status:400})
     const { error } = await db.from('ai_call_campaigns').delete().eq('id',campaignId).eq('account_id',accountId)
     if (error) return NextResponse.json({ error:'Could not delete campaign.' },{status:500})
     return NextResponse.json({ ok:true })
