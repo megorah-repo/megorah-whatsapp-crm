@@ -39,7 +39,7 @@ export function CallingAiApiCard() {
     try{
       const res=await fetch('/api/ai/config',{cache:'no-store'})
       const data=await res.json()
-      if(!res.ok) throw new Error(data.error||'Could not load AI API configuration.')
+      if(!res.ok) return
       if(data.configured){
         setConfigured(true)
         setProvider(data.provider)
@@ -52,7 +52,9 @@ export function CallingAiApiCard() {
         setApiKey(data.has_key ? MASKED_KEY : '')
         setKeyEdited(false)
       }
-    }catch(error){toast.error(error instanceof Error?error.message:'Could not load AI API configuration.')}
+    }catch{
+      // Initial config fetch is best-effort; do not interrupt the AI Agents page.
+    }
   }
 
   useEffect(()=>{void load()},[])
