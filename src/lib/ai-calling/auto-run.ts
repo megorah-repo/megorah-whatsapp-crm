@@ -271,7 +271,7 @@ export async function runAutoCalls(args: { accountId?: string | null; campaignId
       .from('ai_call_queue')
       .select('id',{count:'exact',head:true})
       .eq('campaign_id',campaign.id)
-      .in('status',['placing','queued','ringing','answered','in-progress'])
+      .in('status',['placing','ringing','answered','in-progress'])
 
     const capacity = Math.max(0, campaign.max_concurrent - (activeCount || 0))
     const batch = Math.min(campaign.calls_per_run, capacity)
