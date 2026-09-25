@@ -79,11 +79,11 @@ export async function POST(request: Request) {
     const phoneNumberId = asString(body.phone_number_id)
     const signupEvent = asString(body.signup_event)
 
-    if (!code || !wabaId || !phoneNumberId) {
+    if (!code || !wabaId) {
       return NextResponse.json(
         {
           error:
-            'Meta signup did not return the WABA ID, Phone Number ID, and authorization code.',
+            'Meta signup did not return the WABA ID and authorization code.',
         },
         { status: 400 },
       )
@@ -127,9 +127,60 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verify the exact asset pair returned by Meta before writing anything.
+    // In the normal FINISH event Meta sends both IDs. In the
+    // WhatsApp Business App/Coexistence flow the phone_number_id can be
+    // omitted, so discover it from the WABA instead of blocking onboarding.
+    let resolvedPhoneNumberId = phoneNumberId
+    if (!resolvedPhoneNumberId) {
+      const phonesResponse = await fetch(
+        `https://graph.facebook.com/${process.env.META_GRAPH_API_VERSION || 'v26.0'}/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating&limit=100`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          cache: 'no-store',
+        },
+      )
+
+      if (!phonesResponse.ok) {
+        let message = `Meta could not list phone numbers for WABA ${wabaId}: ${phonesResponse.status}`
+        try {
+          const payload = await phonesResponse.json()
+          if (payload?.error?.message) message = payload.error.message
+        } catch {
+          // Keep the status-based message.
+        }
+        return NextResponse.json(
+          { error: message, stage: 'phone_discovery' },
+          { status: 502 },
+        )
+      }
+
+      const phoneData = (await phonesResponse.json()) as {
+        data?: Array<{ id?: string }>
+      }
+      const ids = (phoneData.data ?? [])
+        .map((item) => asString(item.id))
+        .filter(Boolean)
+
+      if (ids.length !== 1) {
+        return NextResponse.json(
+          {
+            error:
+              ids.length === 0
+                ? 'Meta completed onboarding but no WhatsApp phone number was returned for the connected WABA.'
+                : 'Meta completed onboarding with multiple phone numbers. Select the intended WhatsApp number and reconnect.',
+            stage: 'phone_discovery',
+            phone_numbers: ids,
+          },
+          { status: 409 },
+        )
+      }
+
+      resolvedPhoneNumberId = ids[0]
+    }
+
+    // Verify the exact asset pair before writing anything.
     const setup = await verifyWhatsAppSetup({
-      phoneNumberId,
+      phoneNumberId: resolvedPhoneNumberId,
       wabaId,
       accessToken,
     })
@@ -161,7 +212,7 @@ export async function POST(request: Request) {
     const { data: phoneOwner } = await supabase
       .from('whatsapp_config')
       .select('account_id')
-      .eq('phone_number_id', phoneNumberId)
+      .eq('phone_number_id', resolvedPhoneNumberId)
       .maybeSingle()
 
     if (phoneOwner && phoneOwner.account_id !== accountId) {
@@ -183,7 +234,7 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     const row = {
-      phone_number_id: phoneNumberId,
+      phone_number_id: resolvedPhoneNumberId,
       waba_id: wabaId,
       access_token: encrypt(accessToken),
       // Webhook verification is app-level in Meta. Store the same token
@@ -234,7 +285,7 @@ export async function POST(request: Request) {
       success: true,
       connected: true,
       waba_id: wabaId,
-      phone_number_id: phoneNumberId,
+      phone_number_id: resolvedPhoneNumberId,
       signup_event: signupEvent || 'FINISH',
       phone_info: setup.phone,
       waba_info: setup.waba,
