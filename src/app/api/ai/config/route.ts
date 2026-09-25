@@ -10,7 +10,6 @@ import { validateAiCredentials } from '@/lib/ai/validate'
 import { embedTexts } from '@/lib/ai/embeddings'
 import { AiError, type AiProvider } from '@/lib/ai/types'
 import { normalizeAiModel } from '@/lib/ai/defaults'
-import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
 function bad(message: string) {
   return NextResponse.json({ error: message }, { status: 400 })
@@ -72,10 +71,6 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const { supabase, accountId, userId } = await requireRole('admin')
-    // Authorization is enforced above. Use the server-only service-role
-    // client for the credential write/read path so a stale RLS policy or
-    // membership helper cannot turn a valid admin save into a 500.
-    const db = createServiceRoleClient()
 
     const limit = checkRateLimit(`ai-config:${userId}`, RATE_LIMITS.adminAction)
     if (!limit.success) return rateLimitResponse(limit)
@@ -111,7 +106,7 @@ export async function POST(request: Request) {
     const handoffProvided = 'handoff_agent_id' in body
     let handoffAgentId: string | null = null
     if (rawHandoff) {
-      const { data: member } = await db
+      const { data: member } = await supabase
         .from('profiles')
         .select('user_id')
         .eq('account_id', accountId)
@@ -133,7 +128,7 @@ export async function POST(request: Request) {
     const clearEmbeddingsKey = body.embeddings_api_key === null
 
     // Reuse the stored key when the form didn't send a fresh one.
-    const { data: existing } = await db
+    const { data: existing } = await supabase
       .from('ai_configs')
       .select('id, provider, model, api_key')
       .eq('account_id', accountId)
@@ -242,7 +237,7 @@ export async function POST(request: Request) {
     }
 
     if (existing) {
-      const { error: upErr } = await db
+      const { error: upErr } = await supabase
         .from('ai_configs')
         .update(encryptedKey ? { ...shared, api_key: encryptedKey } : shared)
         .eq('account_id', accountId)
@@ -285,7 +280,7 @@ export async function DELETE() {
   try {
     const { accountId } = await requireRole('admin')
     const db = createServiceRoleClient()
-    const { error } = await db
+    const { error } = await supabase
       .from('ai_configs')
       .delete()
       .eq('account_id', accountId)
