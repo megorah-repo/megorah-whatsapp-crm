@@ -175,7 +175,7 @@ export function WhatsAppConfig() {
     if (embeddedCompletionInFlightRef.current) return
 
     const pending = embeddedSignupPendingRef.current
-    if (!pending.code || !pending.wabaId || !pending.phoneNumberId) return
+    if (!pending.code || !pending.wabaId) return
 
     embeddedCompletionInFlightRef.current = true
     setEmbeddedConnecting(true)
