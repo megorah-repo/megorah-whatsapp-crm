@@ -10,6 +10,7 @@ import { validateAiCredentials } from '@/lib/ai/validate'
 import { embedTexts } from '@/lib/ai/embeddings'
 import { AiError, type AiProvider } from '@/lib/ai/types'
 import { normalizeAiModel } from '@/lib/ai/defaults'
+import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
 function bad(message: string) {
   return NextResponse.json({ error: message }, { status: 400 })
@@ -26,7 +27,7 @@ export async function GET() {
   try {
     const { supabase, accountId } = await getCurrentAccount()
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('ai_configs')
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
@@ -71,6 +72,10 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const { supabase, accountId, userId } = await requireRole('admin')
+    // Authorization is enforced above. Use the server-only service-role
+    // client for the credential write/read path so a stale RLS policy or
+    // membership helper cannot turn a valid admin save into a 500.
+    const db = createServiceRoleClient()
 
     const limit = checkRateLimit(`ai-config:${userId}`, RATE_LIMITS.adminAction)
     if (!limit.success) return rateLimitResponse(limit)
@@ -106,7 +111,7 @@ export async function POST(request: Request) {
     const handoffProvided = 'handoff_agent_id' in body
     let handoffAgentId: string | null = null
     if (rawHandoff) {
-      const { data: member } = await supabase
+      const { data: member } = await db
         .from('profiles')
         .select('user_id')
         .eq('account_id', accountId)
@@ -128,7 +133,7 @@ export async function POST(request: Request) {
     const clearEmbeddingsKey = body.embeddings_api_key === null
 
     // Reuse the stored key when the form didn't send a fresh one.
-    const { data: existing } = await supabase
+    const { data: existing } = await db
       .from('ai_configs')
       .select('id, provider, model, api_key')
       .eq('account_id', accountId)
@@ -199,7 +204,18 @@ export async function POST(request: Request) {
       }
     }
 
-    const encryptedKey = rawKey ? encrypt(rawKey) : null
+    let encryptedKey: string | null = null
+    if (rawKey) {
+      try {
+        encryptedKey = encrypt(rawKey)
+      } catch (err) {
+        console.error('[ai/config POST] encryption error:', err)
+        return NextResponse.json(
+          { error: 'The server encryption key is not configured correctly. Check ENCRYPTION_KEY in the deployment environment.' },
+          { status: 500 },
+        )
+      }
+    }
     const shared: Record<string, unknown> = {
       provider,
       model,
@@ -218,7 +234,7 @@ export async function POST(request: Request) {
     }
 
     if (existing) {
-      const { error: upErr } = await supabase
+      const { error: upErr } = await db
         .from('ai_configs')
         .update(encryptedKey ? { ...shared, api_key: encryptedKey } : shared)
         .eq('account_id', accountId)
@@ -260,7 +276,7 @@ export async function POST(request: Request) {
 export async function DELETE() {
   try {
     const { supabase, accountId } = await requireRole('admin')
-    const { error } = await supabase
+    const { error } = await db
       .from('ai_configs')
       .delete()
       .eq('account_id', accountId)
