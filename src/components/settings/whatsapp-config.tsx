@@ -37,6 +37,48 @@ const MASKED_TOKEN = '••••••••••••••••';
 type ConnectionStatus = 'connected' | 'disconnected' | 'unknown';
 type ResetReason = 'token_corrupted' | 'meta_api_error' | null;
 
+type FacebookLoginResponse = {
+  authResponse?: { code?: string } | null
+}
+
+type FacebookSdk = {
+  init: (options: {
+    appId: string
+    autoLogAppEvents?: boolean
+    xfbml?: boolean
+    cookie?: boolean
+    version: string
+  }) => void
+  login: (
+    callback: (response: FacebookLoginResponse) => void,
+    options: {
+      config_id: string
+      auth_type?: string
+      response_type: 'code'
+      override_default_response_type: boolean
+      extras: Record<string, unknown>
+    },
+  ) => void
+}
+
+type EmbeddedSignupMessage = {
+  type?: string
+  event?: string
+  data?: {
+    waba_id?: string
+    phone_number_id?: string
+    error_message?: string
+    current_step?: string
+  }
+}
+
+declare global {
+  interface Window {
+    FB?: FacebookSdk
+    fbAsyncInit?: () => void
+  }
+}
+
 export function WhatsAppConfig() {
   const t = useTranslations('Settings.whatsapp');
   const supabase = createClient();
@@ -99,6 +141,20 @@ export function WhatsAppConfig() {
   const lastRegistrationError = config?.last_registration_error ?? null;
 
   const [verifyingRegistration, setVerifyingRegistration] = useState(false);
+  const [metaSdkReady, setMetaSdkReady] = useState(false);
+  const [embeddedConnecting, setEmbeddedConnecting] = useState(false);
+  const [embeddedError, setEmbeddedError] = useState('');
+  const embeddedSignupConfigured =
+    Boolean(process.env.NEXT_PUBLIC_META_APP_ID) &&
+    Boolean(process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID)
+  const embeddedSignupPendingRef = useRef<{
+    code?: string
+    wabaId?: string
+    phoneNumberId?: string
+    event?: string
+  }>({})
+  const embeddedCompletionInFlightRef = useRef(false);
+
   type RegistrationProbe = {
     live: boolean;
     checks: Record<string, boolean | null>;
@@ -114,6 +170,206 @@ export function WhatsAppConfig() {
     typeof window !== 'undefined'
       ? `${window.location.origin}/api/whatsapp/webhook`
       : '';
+
+  async function completeEmbeddedSignup() {
+    if (embeddedCompletionInFlightRef.current) return
+
+    const pending = embeddedSignupPendingRef.current
+    if (!pending.code || !pending.wabaId || !pending.phoneNumberId) return
+
+    embeddedCompletionInFlightRef.current = true
+    setEmbeddedConnecting(true)
+    setEmbeddedError('')
+
+    try {
+      const response = await fetch('/api/whatsapp/embedded-signup/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: pending.code,
+          waba_id: pending.wabaId,
+          phone_number_id: pending.phoneNumberId,
+          signup_event: pending.event,
+        }),
+      })
+      const payload = await response.json().catch(() => ({}))
+
+      if (!response.ok || !payload.connected) {
+        throw new Error(
+          payload.error ||
+            'Meta completed the signup, but the CRM could not finish the connection.',
+        )
+      }
+
+      setPhoneNumberId(String(payload.phone_number_id || pending.phoneNumberId))
+      setWabaId(String(payload.waba_id || pending.wabaId))
+      setAccessToken(MASKED_TOKEN)
+      setTokenEdited(false)
+      setCredentialsTested(true)
+      setConnectionStatus('connected')
+
+      // Pull approved templates into the CRM immediately.
+      try {
+        await fetch('/api/whatsapp/templates/sync', { method: 'POST' })
+      } catch {
+        // Template sync can be retried from the Templates screen.
+      }
+
+      if (accountId) await fetchConfig(accountId)
+      toast.success(
+        'WhatsApp connected to Meta. Messages, statuses and templates can now flow into the CRM.',
+      )
+      embeddedSignupPendingRef.current = {}
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to finish Meta Embedded Signup.'
+      setEmbeddedError(message)
+      toast.error(message, { duration: 12000 })
+    } finally {
+      embeddedCompletionInFlightRef.current = false
+      setEmbeddedConnecting(false)
+    }
+  }
+
+  function launchEmbeddedSignup() {
+    if (!window.FB) {
+      toast.error('Meta sign-in is still loading. Refresh the page and try again.')
+      return
+    }
+
+    const configId = process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID
+    if (!configId) {
+      toast.error('Meta Embedded Signup is not configured on this CRM deployment.')
+      return
+    }
+
+    embeddedSignupPendingRef.current = {}
+    setEmbeddedError('')
+
+    // FB.login must be called directly from the click handler so browsers
+    // do not block the Meta popup.
+    window.FB.login(
+      (response) => {
+        const code = response.authResponse?.code
+        if (!code) {
+          setEmbeddedError(
+            'Meta sign-in was cancelled, blocked, or did not return an authorization code.',
+          )
+          return
+        }
+        embeddedSignupPendingRef.current.code = code
+        void completeEmbeddedSignup()
+      },
+      {
+        config_id: configId,
+        auth_type: 'rerequest',
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: {
+          setup: {},
+          featureType: 'whatsapp_business_app_onboarding',
+        },
+      },
+    )
+  }
+
+  useEffect(() => {
+    if (!embeddedSignupConfigured) return
+
+    const graphVersion =
+      process.env.NEXT_PUBLIC_META_GRAPH_API_VERSION || 'v26.0'
+
+    const initSdk = () => {
+      if (!window.FB) return
+      window.FB.init({
+        appId: process.env.NEXT_PUBLIC_META_APP_ID as string,
+        autoLogAppEvents: true,
+        xfbml: true,
+        cookie: true,
+        version: graphVersion,
+      })
+      setMetaSdkReady(true)
+    }
+
+    if (window.FB) {
+      initSdk()
+      return
+    }
+
+    window.fbAsyncInit = initSdk
+
+    const existingScript = document.getElementById('facebook-jssdk')
+    if (!existingScript) {
+      const script = document.createElement('script')
+      script.id = 'facebook-jssdk'
+      script.async = true
+      script.defer = true
+      script.crossOrigin = 'anonymous'
+      script.src = 'https://connect.facebook.net/en_US/sdk.js'
+      document.body.appendChild(script)
+    }
+
+    return () => {
+      if (window.fbAsyncInit === initSdk) {
+        delete window.fbAsyncInit
+      }
+    }
+  }, [embeddedSignupConfigured])
+
+  useEffect(() => {
+    if (!embeddedSignupConfigured) return
+
+    const onMessage = (event: MessageEvent) => {
+      if (!event.origin.endsWith('facebook.com')) return
+
+      let data: EmbeddedSignupMessage
+      try {
+        data = JSON.parse(event.data) as EmbeddedSignupMessage
+      } catch {
+        return
+      }
+
+      if (data.type !== 'WA_EMBEDDED_SIGNUP') return
+
+      if (
+        data.event === 'FINISH' ||
+        data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING'
+      ) {
+        embeddedSignupPendingRef.current = {
+          ...embeddedSignupPendingRef.current,
+          wabaId:
+            data.data?.waba_id || embeddedSignupPendingRef.current.wabaId,
+          phoneNumberId:
+            data.data?.phone_number_id ||
+            embeddedSignupPendingRef.current.phoneNumberId,
+          event: data.event,
+        }
+        void completeEmbeddedSignup()
+        return
+      }
+
+      if (data.event === 'ERROR') {
+        const message =
+          data.data?.error_message || 'Meta reported an onboarding error.'
+        setEmbeddedError(message)
+        toast.error(message, { duration: 12000 })
+        return
+      }
+
+      if (data.event === 'CANCEL') {
+        setEmbeddedError(
+          data.data?.current_step
+            ? `Meta onboarding was cancelled at ${data.data.current_step}.`
+            : 'Meta onboarding was cancelled.',
+        )
+      }
+    }
+
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [embeddedSignupConfigured])
 
   const fetchConfig = useCallback(async (acctId: string) => {
     setLoading(true);
@@ -363,7 +619,7 @@ export function WhatsAppConfig() {
         accessToken.trim() !== MASKED_TOKEN;
 
       let res: Response;
-      if (phoneNumberId.trim() && hasEnteredToken) {
+      if (phoneNumberId.trim() && wabaId.trim() && hasEnteredToken) {
         res = await fetch('/api/whatsapp/config/test', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -373,10 +629,18 @@ export function WhatsAppConfig() {
             access_token: accessToken.trim(),
           }),
         });
-      } else {
-        // Existing saved configuration: use the encrypted server-side
-        // token so the user never has to expose it again in the browser.
+      } else if (config) {
+        // Existing saved configuration: the server decrypts the stored token.
+        // No token re-entry should be necessary just to test the connection.
         res = await fetch('/api/whatsapp/config', { method: 'GET' });
+      } else {
+        const message = !wabaId.trim()
+          ? 'WABA ID is required before the API can be tested.'
+          : 'Enter an Access Token before testing a new configuration.'
+        setConnectionStatus('disconnected')
+        setStatusMessage(message)
+        toast.error(message)
+        return
       }
 
       const payload = await res.json().catch(() => ({}));
@@ -668,6 +932,60 @@ export function WhatsAppConfig() {
           </Alert>
         )}
 
+        {/* Embedded Signup — preferred onboarding */}
+        {embeddedSignupConfigured && (
+          <Card className="border-primary/30 bg-primary/[0.04]">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-foreground">Connect with Meta</CardTitle>
+                  <CardDescription className="text-muted-foreground mt-1">
+                    Secure Meta onboarding inside the CRM. No copying access tokens or leaving this workspace.
+                  </CardDescription>
+                </div>
+                <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary">
+                  Recommended
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button
+                type="button"
+                onClick={launchEmbeddedSignup}
+                disabled={!metaSdkReady || embeddedConnecting}
+                className="w-full sm:w-auto"
+              >
+                {embeddedConnecting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Connecting Meta…
+                  </>
+                ) : !metaSdkReady ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Loading Meta…
+                  </>
+                ) : (
+                  <>
+                    <Zap className="size-4" />
+                    Connect WhatsApp with Meta
+                  </>
+                )}
+              </Button>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Meta returns the WABA and phone number to the CRM, the server exchanges the authorization code securely, subscribes webhooks, stores the encrypted business token and syncs templates.
+              </p>
+              {embeddedError && (
+                <Alert className="bg-red-950/30 border-red-700/50">
+                  <AlertDescription className="text-red-200 text-xs">
+                    {embeddedError}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* API Credentials */}
         <Card>
           <CardHeader>
@@ -877,7 +1195,7 @@ export function WhatsAppConfig() {
         )}
 
         {/* First-time setup guide */}
-        {!config && (
+        {!config && !embeddedSignupConfigured && (
           <Card className="border-primary/30 bg-primary/[0.04]">
             <CardHeader className="pb-3">
               <CardTitle className="text-foreground text-base">Connect WhatsApp in 3 steps</CardTitle>
@@ -942,9 +1260,8 @@ export function WhatsAppConfig() {
               testing ||
               !phoneNumberId.trim() ||
               !wabaId.trim() ||
-              (config
-                ? tokenEdited && !(accessToken.trim() && accessToken !== MASKED_TOKEN)
-                : !(tokenEdited && accessToken.trim() && accessToken !== MASKED_TOKEN))
+              (!config &&
+                !(tokenEdited && accessToken.trim() && accessToken !== MASKED_TOKEN))
             }
             className="border-border text-muted-foreground hover:text-foreground hover:bg-muted"
           >
