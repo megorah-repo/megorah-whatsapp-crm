@@ -22,26 +22,53 @@ export default function AgentsPage() {
   const canViewUsage = accountRole ? canEditSettings(accountRole) : false;
   const canEdit = canViewUsage;
   const [tab, setTab] = useState<Tab>('playground');
-  const decided = true;
 
-  // Land first-time users on Setup, returning users on the Playground.
+  // Keep navigation instant: do not wait on an API request to decide which
+  // tab to render. Remember the last tab locally instead.
   useEffect(() => {
-    let cancelled = false;
-    const loadLandingTab = async () => {
-      try {
-        const res = await fetch('/api/ai/config');
-        const data = await res.json().catch(() => ({}));
-        if (!cancelled) setTab(data?.configured ? 'playground' : 'setup');
-      } catch {
-        if (!cancelled) setTab('setup');
+    try {
+      const saved = window.localStorage.getItem('megorah-ai-agents-tab-v1');
+      if (saved === 'playground' || saved === 'setup' || saved === 'calling' || saved === 'usage') {
+        setTab(saved);
       }
-    };
-    const defer = window.setTimeout(() => { void loadLandingTab() }, 0);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(defer);
-    };
+    } catch {
+      // Local preference is optional.
+    }
   }, []);
+
+  // Warm the lazy-loaded tabs after first paint so switching between
+  // Playground / Setup / AI Calling / Usage feels immediate.
+  useEffect(() => {
+    const warm = () => {
+      void import('@/components/agents/ai-playground');
+      void import('@/components/settings/ai-config');
+      void import('@/components/agents/ai-calling-panel');
+      void import('@/components/agents/ai-usage');
+    };
+
+    const w = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(warm, { timeout: 1200 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+
+    const timer = window.setTimeout(warm, 300);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const handleTabChange = (value: string) => {
+    const next = value as Tab;
+    setTab(next);
+    try {
+      window.localStorage.setItem('megorah-ai-agents-tab-v1', next);
+    } catch {
+      // Local preference is optional.
+    }
+  };
 
   return (
     <div>
@@ -56,10 +83,10 @@ export default function AgentsPage() {
         playground before it replies to customers in the inbox.
       </p>
 
-      {decided && (
+      {true && (
         <Tabs
           value={tab}
-          onValueChange={(v) => setTab(v as Tab)}
+          onValueChange={handleTabChange}
           className="mt-6"
         >
           <TabsList>
