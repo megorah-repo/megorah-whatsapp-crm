@@ -62,7 +62,7 @@ export function AiUsageCard() {
   const [data, setData] = useState<UsageResponse | null>(null);
   const loadedRef = useRef<string | null>(null);
 
-  const fetchUsage = useCallback(async (windowDays: number) => {
+  const fetchUsage = useCallback(async (windowDays: number, notifyOnError = false) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/ai/usage?days=${windowDays}`, {
@@ -70,13 +70,13 @@ export function AiUsageCard() {
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
-        toast.error(json?.error ?? 'Failed to load usage');
+        if (notifyOnError) toast.error(json?.error ?? 'Failed to load usage');
         setData(null);
         return;
       }
       setData(json as UsageResponse);
     } catch {
-      toast.error('Failed to load usage');
+      if (notifyOnError) toast.error('Failed to load usage');
       setData(null);
     } finally {
       setLoading(false);
@@ -89,7 +89,7 @@ export function AiUsageCard() {
     const key = `${accountId}:${days}`;
     if (loadedRef.current === key) return;
     loadedRef.current = key;
-    void fetchUsage(days);
+    void fetchUsage(days, false);
   }, [canView, accountId, days, fetchUsage]);
 
   if (profileLoading || !canView) return null;
