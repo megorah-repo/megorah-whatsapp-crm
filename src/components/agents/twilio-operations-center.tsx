@@ -163,25 +163,40 @@ export function TwilioOperationsCenter({
   const loadConfig = useCallback(async () => {
     try {
       const response = await fetch('/api/ai-calling/twilio/config', { cache: 'no-store' })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Could not load Twilio connection.')
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) return
 
       const isConfigured = Boolean(data.configured)
       setConnected(isConfigured)
       setAccountSid(data.account_sid || '')
       setVerifiedAt(data.last_verified_at || null)
-      if (data.caller_number && data.caller_number !== callerNumber) callerNumberChangeRef.current(data.caller_number)
-
-      if (isConfigured) {
-        const syncResponse = await fetch('/api/ai-calling/twilio/numbers', { method: 'POST' })
-        const syncData = await syncResponse.json().catch(() => ({}))
-        if (syncResponse.ok) {
-          setNumbers(syncData.numbers || [])
-          if (syncData.caller_number && syncData.caller_number !== callerNumber) callerNumberChangeRef.current(syncData.caller_number)
-        }
+      if (data.caller_number && data.caller_number !== callerNumber) {
+        callerNumberChangeRef.current(data.caller_number)
       }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not load Twilio connection.')
+
+      // The connection status is enough to paint the page. Number sync runs
+      // in the background and never blocks the first render or shows a toast.
+      if (isConfigured) {
+        void (async () => {
+          try {
+            const syncResponse = await fetch('/api/ai-calling/twilio/numbers', {
+              method: 'POST',
+              cache: 'no-store',
+            })
+            const syncData = await syncResponse.json().catch(() => ({}))
+            if (syncResponse.ok) {
+              setNumbers(syncData.numbers || [])
+              if (syncData.caller_number && syncData.caller_number !== callerNumber) {
+                callerNumberChangeRef.current(syncData.caller_number)
+              }
+            }
+          } catch {
+            // Background sync is best-effort. Use the explicit Sync button to retry.
+          }
+        })()
+      }
+    } catch {
+      // Initial connection lookup is best-effort. Do not interrupt the page with a toast.
     }
   }, [callerNumber])
 
@@ -304,7 +319,7 @@ export function TwilioOperationsCenter({
     }
   }
 
-  const loadCalls = useCallback(async () => {
+  const loadCalls = useCallback(async (notifyOnError = false) => {
     if (!connected) {
       setCalls([])
       return
@@ -328,13 +343,15 @@ export function TwilioOperationsCenter({
       setCalls(data.calls || [])
       if (data.fetched_at) setLastSyncedAt(data.fetched_at)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not load call history.')
+      if (notifyOnError) {
+        toast.error(error instanceof Error ? error.message : 'Could not load call history.')
+      }
     } finally {
       setCallsLoading(false)
     }
-  }, [callDate, callStatus, connected])
+  }, [callDate, callStatus, connected])  
 
-  const loadUsage = useCallback(async () => {
+  const loadUsage = useCallback(async (notifyOnError = false) => {
     if (!connected) return
     setUsageLoading(true)
     try {
@@ -355,7 +372,9 @@ export function TwilioOperationsCenter({
           .pop() || null,
       )
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not load Twilio usage.')
+      if (notifyOnError) {
+        toast.error(error instanceof Error ? error.message : 'Could not load Twilio usage.')
+      }
     } finally {
       setUsageLoading(false)
     }
@@ -367,15 +386,27 @@ export function TwilioOperationsCenter({
 
   useEffect(() => {
     if (!connected) return
-    void loadUsage()
-    void loadCalls()
+
+    // Let the connection card render first. Usage + history are below the
+    // fold and hit live Twilio endpoints, so refresh them shortly after paint.
+    const start = window.setTimeout(() => {
+      if (document.visibilityState !== 'hidden') {
+        void loadUsage(false)
+        void loadCalls(false)
+      }
+    }, 650)
 
     const interval = window.setInterval(() => {
-      void loadUsage()
-      void loadCalls()
+      if (document.visibilityState !== 'hidden') {
+        void loadUsage(false)
+        void loadCalls(false)
+      }
     }, 60_000)
 
-    return () => window.clearInterval(interval)
+    return () => {
+      window.clearTimeout(start)
+      window.clearInterval(interval)
+    }
   }, [connected, loadUsage, loadCalls])
 
   const currency = usageCurrency(todayUsage || thirtyDayUsage)
@@ -602,7 +633,7 @@ export function TwilioOperationsCenter({
                   Live outbound voice usage pulled directly from the connected Twilio account. Counts, minutes and voice cost update automatically every 60 seconds.
                 </CardDescription>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => void loadUsage()} disabled={usageLoading}>
+              <Button variant="ghost" size="sm" onClick={() => void loadUsage(true)} disabled={usageLoading}>
                 {usageLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </Button>
             </CardHeader>
@@ -667,7 +698,7 @@ export function TwilioOperationsCenter({
                       <SelectItem value="failed">Failed</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button variant="outline" onClick={() => void loadCalls()} disabled={callsLoading}>
+                  <Button variant="outline" onClick={() => void loadCalls(true)} disabled={callsLoading}>
                     {callsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   </Button>
                 </div>

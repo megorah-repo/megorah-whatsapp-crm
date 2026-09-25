@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { loadDirectCallingApiConfig } from '@/lib/ai-calling/direct-api-config'
+import { syncQueueFromCallStatus } from '@/lib/ai-calling/auto-run'
 
 function toObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? value as Record<string, unknown> : {}
@@ -75,6 +76,8 @@ export async function POST(request: Request) {
       console.error('[ai-calling/direct-api/webhook] update failed:', error)
       return NextResponse.json({ error: 'Could not update call session.' }, { status: 500 })
     }
+
+    await syncQueueFromCallStatus(sessionId, status, status === 'failed' ? text(nested.error ?? nested.message) : null)
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('[ai-calling/direct-api/webhook] error:', err)

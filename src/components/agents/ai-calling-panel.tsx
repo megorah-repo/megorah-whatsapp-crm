@@ -31,6 +31,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { TwilioOperationsCenter } from './twilio-operations-center';
 import { DirectCallingApiCard } from './direct-calling-api-card';
+import { CallingAiApiCard } from './calling-ai-api-card';
+import { AutoCallCampaigns } from './auto-call-campaigns';
 
 const STORAGE_KEY = 'megorah-ai-calling-settings-v1';
 
@@ -104,7 +106,6 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
   const [testCallLoading, setTestCallLoading] = useState(false);
   const [testCallStatus, setTestCallStatus] = useState<string | null>(null);
   const [testSessionId, setTestSessionId] = useState<string | null>(null);
-  const [directApiConnected, setDirectApiConnected] = useState(false);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -386,20 +387,30 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
             </CardContent>
           </Card>
 
+          <CallingAiApiCard />
+
+          <TwilioOperationsCenter
+            canEdit={canEdit}
+            callerNumber={settings.businessNumber}
+            onCallerNumberChange={(value) => update('businessNumber', value)}
+          />
+
           <DirectCallingApiCard
             canEdit={canEdit}
             callerNumber={settings.businessNumber}
             onCallerNumberChange={(value) => update('businessNumber', value)}
-            onConnected={() => setDirectApiConnected(true)}
           />
 
-          {!directApiConnected && (
-            <TwilioOperationsCenter
-              canEdit={canEdit}
-              callerNumber={settings.businessNumber}
-              onCallerNumberChange={(value) => update('businessNumber', value)}
-            />
-          )}
+          <AutoCallCampaigns
+            canEdit={canEdit}
+            callerName={settings.callerName}
+            greeting={settings.greeting}
+            instructions={settings.instructions}
+            language={settings.language}
+            transferNumber={settings.transferNumber}
+            transferOnHandoff={settings.transferOnHandoff}
+            maxCallMinutes={settings.maxCallMinutes}
+          />
 
           <Card className="border-primary/25 bg-primary/5">
             <CardHeader>

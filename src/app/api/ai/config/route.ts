@@ -199,7 +199,18 @@ export async function POST(request: Request) {
       }
     }
 
-    const encryptedKey = rawKey ? encrypt(rawKey) : null
+    let encryptedKey: string | null = null
+    if (rawKey) {
+      try {
+        encryptedKey = encrypt(rawKey)
+      } catch (err) {
+        console.error('[ai/config POST] encryption error:', err)
+        return NextResponse.json(
+          { error: 'The server encryption key is not configured correctly. Check ENCRYPTION_KEY in the deployment environment.' },
+          { status: 500 },
+        )
+      }
+    }
     const shared: Record<string, unknown> = {
       provider,
       model,
@@ -212,7 +223,15 @@ export async function POST(request: Request) {
     // so a partial save (e.g. flipping a toggle) doesn't wipe it.
     if (handoffProvided) shared.handoff_agent_id = handoffAgentId
     if (rawEmbeddingsKey) {
-      shared.embeddings_api_key = encrypt(rawEmbeddingsKey)
+      try {
+        shared.embeddings_api_key = encrypt(rawEmbeddingsKey)
+      } catch (err) {
+        console.error('[ai/config POST] embeddings encryption error:', err)
+        return NextResponse.json(
+          { error: 'The server encryption key is not configured correctly. Check ENCRYPTION_KEY in the deployment environment.' },
+          { status: 500 },
+        )
+      }
     } else if (clearEmbeddingsKey) {
       shared.embeddings_api_key = null
     }
@@ -259,7 +278,8 @@ export async function POST(request: Request) {
  */
 export async function DELETE() {
   try {
-    const { supabase, accountId } = await requireRole('admin')
+    const { accountId } = await requireRole('admin')
+    const db = createServiceRoleClient()
     const { error } = await supabase
       .from('ai_configs')
       .delete()
