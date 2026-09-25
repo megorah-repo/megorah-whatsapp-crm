@@ -175,7 +175,7 @@ async function placeItem(db: Db, item: QueueItem, campaign: Campaign, origin: st
       const result = providerResult(payload)
       const providerId = result.id || 'direct-' + session.id
       await db.from('ai_call_sessions').update({ provider_call_sid: providerId, status: result.status }).eq('id', session.id)
-      await db.from('ai_call_queue').update({ session_id: session.id, status: result.status || 'in-progress', last_error: null }).eq('id', item.id)
+      await db.from('ai_call_queue').update({ session_id: session.id, status: result.status === 'queued' ? 'placing' : (result.status || 'in-progress'), last_error: null }).eq('id', item.id)
       return { sessionId: session.id, provider: direct.providerName, providerCallId: providerId, status: result.status }
     }
 
@@ -191,7 +191,7 @@ async function placeItem(db: Db, item: QueueItem, campaign: Campaign, origin: st
       timeLimitSeconds: settings.maxCallMinutes * 60,
     })
     await db.from('ai_call_sessions').update({ provider_call_sid: call.sid, status: call.status }).eq('id', session.id)
-    await db.from('ai_call_queue').update({ session_id: session.id, status: call.status || 'queued', last_error: null }).eq('id', item.id)
+    await db.from('ai_call_queue').update({ session_id: session.id, status: call.status === 'queued' ? 'placing' : (call.status || 'placing'), last_error: null }).eq('id', item.id)
     return { sessionId: session.id, provider: 'Twilio', providerCallId: call.sid, status: call.status }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Calling provider could not start the call.'
