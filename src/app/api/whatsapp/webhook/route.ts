@@ -112,7 +112,21 @@ export async function GET(request: Request) {
       )
     }
 
-    // Fetch all whatsapp configs to check verify tokens
+    // Meta Webhooks are configured once at the App level, not once per
+    // customer WABA. Prefer the single global token so Embedded Signup can
+    // onboard new workspaces without sending every customer back to Meta
+    // just to paste a different verify token.
+    const globalVerifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN?.trim()
+    if (globalVerifyToken && verifyToken === globalVerifyToken) {
+      return new Response(challenge, {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain' },
+      })
+    }
+
+    // Backward-compatible fallback for workspaces created before the global
+    // webhook token was introduced. Existing per-account verify tokens still
+    // work, but new onboarding should use META_WEBHOOK_VERIFY_TOKEN.
     const { data: configs, error: configError } = await supabaseAdmin()
       .from('whatsapp_config')
       .select('id, verify_token')
@@ -125,9 +139,8 @@ export async function GET(request: Request) {
       )
     }
 
-    // Check if any config's verify_token matches. Also collect the
-    // matching row so we can opportunistically upgrade its token to
-    // GCM if it was still in the legacy CBC format.
+    // Check whether any legacy config verify_token matches. Also collect the
+    // matching row so we can opportunistically upgrade it to GCM.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let matchedConfig: any = null
     for (const config of configs) {
@@ -143,8 +156,6 @@ export async function GET(request: Request) {
     }
 
     if (matchedConfig) {
-      // Fire-and-forget GCM upgrade. Safe to run on every subscribe
-      // since it's a no-op once the column is already GCM.
       if (isLegacyFormat(matchedConfig.verify_token)) {
         void supabaseAdmin()
           .from('whatsapp_config')
@@ -159,7 +170,6 @@ export async function GET(request: Request) {
             }
           })
       }
-      // Return challenge as plain text
       return new Response(challenge, {
         status: 200,
         headers: { 'Content-Type': 'text/plain' },
