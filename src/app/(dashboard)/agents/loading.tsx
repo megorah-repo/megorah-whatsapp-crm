@@ -7,8 +7,8 @@ export default function AgentsLoading() {
       </div>
 
       <div className="flex gap-2">
-        {['w-28', 'w-20', 'w-24', 'w-20'].map((width) => (
-          <div key={width} className={`h-9 ${width} animate-pulse rounded-md bg-muted`} />
+        {['w-28', 'w-20', 'w-24', 'w-20'].map((width, index) => (
+          <div key={`tab-skeleton-${index}`} className={`h-9 ${width} animate-pulse rounded-md bg-muted`} />
         ))}
       </div>
 
