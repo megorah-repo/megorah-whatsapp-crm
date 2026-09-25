@@ -26,6 +26,9 @@ export function CallingAiApiCard() {
   const [hasKey,setHasKey]=useState(false)
   const [configured,setConfigured]=useState(false)
   const [systemPrompt,setSystemPrompt]=useState('')
+  const [autoReplyEnabled,setAutoReplyEnabled]=useState(false)
+  const [maxPerConversation,setMaxPerConversation]=useState(3)
+  const [handoffAgentId,setHandoffAgentId]=useState<string|null>(null)
   const [saving,setSaving]=useState(false)
   const [testing,setTesting]=useState(false)
 
@@ -39,6 +42,9 @@ export function CallingAiApiCard() {
         setProvider(data.provider)
         setModel(data.model||AI_PROVIDER_DEFAULT_MODEL[data.provider as AiProvider])
         setSystemPrompt(data.system_prompt||'')
+        setAutoReplyEnabled(Boolean(data.auto_reply_enabled))
+        setMaxPerConversation(Number(data.auto_reply_max_per_conversation)||3)
+        setHandoffAgentId(data.handoff_agent_id||null)
         setHasKey(Boolean(data.has_key))
         setApiKey(data.has_key?'':'')
       }
@@ -60,9 +66,9 @@ export function CallingAiApiCard() {
           api_key:apiKey.trim()||undefined,
           system_prompt:systemPrompt.trim()||null,
           is_active:true,
-          auto_reply_enabled:false,
-          auto_reply_max_per_conversation:3,
-          handoff_agent_id:null,
+          auto_reply_enabled:autoReplyEnabled,
+          auto_reply_max_per_conversation:maxPerConversation,
+          handoff_agent_id:handoffAgentId,
         }),
       })
       const data=await res.json()
