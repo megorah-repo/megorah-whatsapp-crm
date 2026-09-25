@@ -219,10 +219,11 @@ export async function syncQueueFromCallStatus(sessionId: string, providerStatus:
   if (!queue) return
 
   const normalized = providerStatus === 'cancelled' ? 'canceled' : providerStatus
+  const queueProviderStatus = normalized === 'queued' ? 'placing' : normalized
   const terminal = new Set(['completed','failed','busy','no-answer','canceled'])
   const retryable = new Set(['failed','busy','no-answer'])
 
-  if (retryable.has(normalized) && queue.attempt_count < queue.max_attempts) {
+  if (retryable.has(queueProviderStatus) && queue.attempt_count < queue.max_attempts) {
     const { data: campaign } = await db
       .from('ai_call_campaigns')
       .select('retry_delay_minutes,status')
@@ -238,7 +239,7 @@ export async function syncQueueFromCallStatus(sessionId: string, providerStatus:
     return
   }
 
-  const nextStatus = terminal.has(normalized) ? normalized : (normalized || 'in-progress')
+  const nextStatus = terminal.has(queueProviderStatus) ? queueProviderStatus : (queueProviderStatus || 'in-progress')
   await db.from('ai_call_queue').update({
     status: nextStatus,
     last_error: errorMessage || null,
