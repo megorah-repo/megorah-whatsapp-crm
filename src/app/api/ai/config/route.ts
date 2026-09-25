@@ -283,7 +283,8 @@ export async function POST(request: Request) {
  */
 export async function DELETE() {
   try {
-    const { supabase, accountId } = await requireRole('admin')
+    const { accountId } = await requireRole('admin')
+    const db = createServiceRoleClient()
     const { error } = await db
       .from('ai_configs')
       .delete()
