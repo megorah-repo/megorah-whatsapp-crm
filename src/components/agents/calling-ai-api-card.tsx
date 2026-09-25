@@ -12,6 +12,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { AI_PROVIDER_DEFAULT_MODEL } from '@/lib/ai/defaults'
 import type { AiProvider } from '@/lib/ai/types'
 
+const MASKED_KEY = '••••••••••••••••'
+
 const providers: Array<{ value: AiProvider; label: string }> = [
   { value:'openai', label:'OpenAI' },
   { value:'anthropic', label:'Anthropic (Claude)' },
@@ -24,6 +26,7 @@ export function CallingAiApiCard() {
   const [apiKey,setApiKey]=useState('')
   const [showKey,setShowKey]=useState(false)
   const [hasKey,setHasKey]=useState(false)
+  const [keyEdited,setKeyEdited]=useState(false)
   const [configured,setConfigured]=useState(false)
   const [systemPrompt,setSystemPrompt]=useState('')
   const [autoReplyEnabled,setAutoReplyEnabled]=useState(false)
@@ -46,7 +49,8 @@ export function CallingAiApiCard() {
         setMaxPerConversation(Number(data.auto_reply_max_per_conversation)||3)
         setHandoffAgentId(data.handoff_agent_id||null)
         setHasKey(Boolean(data.has_key))
-        setApiKey(data.has_key?'':'')
+        setApiKey(data.has_key ? MASKED_KEY : '')
+        setKeyEdited(false)
       }
     }catch(error){toast.error(error instanceof Error?error.message:'Could not load AI API configuration.')}
   }
@@ -54,7 +58,7 @@ export function CallingAiApiCard() {
   useEffect(()=>{void load()},[])
 
   const save=async()=>{
-    if(!apiKey.trim() && !hasKey){toast.error('Paste an AI API key first.');return}
+    if(!keyEdited && !hasKey){toast.error('Paste an AI API key first.');return}
     setSaving(true)
     try{
       const res=await fetch('/api/ai/config',{
@@ -63,7 +67,7 @@ export function CallingAiApiCard() {
         body:JSON.stringify({
           provider,
           model:model.trim()||AI_PROVIDER_DEFAULT_MODEL[provider],
-          api_key:apiKey.trim()||undefined,
+          api_key:keyEdited ? apiKey.trim() : undefined,
           system_prompt:systemPrompt.trim()||null,
           is_active:true,
           auto_reply_enabled:autoReplyEnabled,
@@ -73,20 +77,20 @@ export function CallingAiApiCard() {
       })
       const data=await res.json()
       if(!res.ok) throw new Error(data.error||'Could not save AI API key.')
-      setConfigured(true);setHasKey(true);setApiKey('')
+      setConfigured(true);setHasKey(true);setApiKey(MASKED_KEY);setKeyEdited(false)
       toast.success('AI API connected and enabled for AI Calling.')
     }catch(error){toast.error(error instanceof Error?error.message:'Could not save AI API key.')}
     finally{setSaving(false)}
   }
 
   const test=async()=>{
-    if(!apiKey.trim() && !hasKey){toast.error('Enter an API key to test.');return}
+    if(!keyEdited && !hasKey){toast.error('Enter an API key to test.');return}
     setTesting(true)
     try{
       const res=await fetch('/api/ai/test',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({provider,model:model.trim(),api_key:apiKey.trim()||undefined}),
+        body:JSON.stringify({provider,model:model.trim(),api_key:keyEdited ? apiKey.trim() : undefined}),
       })
       const data=await res.json()
       if(!res.ok) throw new Error(data.error||'AI key test failed.')
@@ -123,9 +127,10 @@ export function CallingAiApiCard() {
           <Label htmlFor="calling-ai-key">API key</Label>
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <Input id="calling-ai-key" type={showKey?'text':'password'} value={apiKey} onChange={(e)=>setApiKey(e.target.value)} onFocus={()=>hasKey&&!apiKey&&setApiKey('')} placeholder={hasKey?'Saved securely — enter only to replace':'Paste provider API key'} disabled={saving} autoComplete="off"/>
+              <Input id="calling-ai-key" type={showKey?'text':'password'} value={apiKey} onChange={(e)=>{setApiKey(e.target.value);setKeyEdited(true)}} readOnly={hasKey&&!keyEdited} placeholder={hasKey?'Saved securely — use Replace to change it':'Paste provider API key'} disabled={saving} autoComplete="off"/>
               <button type="button" onClick={()=>setShowKey((v)=>!v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label={showKey?'Hide API key':'Show API key'}>{showKey?<EyeOff className="h-4 w-4"/>:<Eye className="h-4 w-4"/>}</button>
             </div>
+            {hasKey && !keyEdited && <Button variant="ghost" onClick={()=>{setApiKey('');setKeyEdited(true);setShowKey(false)}} disabled={saving}>Replace</Button>}
             <Button variant="outline" onClick={test} disabled={testing||saving}>{testing?<Loader2 className="mr-2 h-4 w-4 animate-spin"/>:<CheckCircle2 className="mr-2 h-4 w-4"/>}Test API</Button>
           </div>
         </div>
@@ -133,6 +138,7 @@ export function CallingAiApiCard() {
           <Label htmlFor="calling-ai-context">AI business context</Label>
           <Textarea id="calling-ai-context" value={systemPrompt} onChange={(e)=>setSystemPrompt(e.target.value)} rows={3} placeholder="e.g. Megorah home decor, Indian D2C brand, product and order support." disabled={saving}/>
         </div>
+        {hasKey && !keyEdited && <div className="text-xs text-emerald-600 dark:text-emerald-400">✓ Gemini/API key is securely saved. You do not need to enter it again to test.</div>}
         <Button onClick={save} disabled={saving}>{saving?<Loader2 className="mr-2 h-4 w-4 animate-spin"/>:<CheckCircle2 className="mr-2 h-4 w-4"/>}{configured?'Update AI API':'Connect AI API'}</Button>
       </CardContent>
     </Card>
