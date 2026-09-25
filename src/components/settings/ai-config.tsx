@@ -314,11 +314,10 @@ export function AiConfig() {
                       setApiKey(e.target.value);
                       setKeyEdited(true);
                     }}
+                    readOnly={hasStoredKey && !keyEdited}
                     onFocus={() => {
-                      if (!keyEdited && hasStoredKey) {
-                        setApiKey('');
-                        setKeyEdited(true);
-                      }
+                      // Keep the masked value intact so Test/Save can reuse
+                      // the encrypted server-side key without re-entry.
                     }}
                     placeholder={KEY_PLACEHOLDER[provider]}
                     disabled={disabled}
@@ -337,6 +336,20 @@ export function AiConfig() {
                     )}
                   </button>
                 </div>
+                {hasStoredKey && !keyEdited && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setApiKey('');
+                      setKeyEdited(true);
+                      setShowKey(false);
+                    }}
+                    disabled={disabled || testing}
+                  >
+                    Replace
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   onClick={handleTest}
@@ -351,6 +364,12 @@ export function AiConfig() {
                 </Button>
               </div>
             </div>
+
+            {hasStoredKey && !keyEdited && (
+              <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                ✓ API key is securely saved on the server. You do not need to enter it again for Test or Save.
+              </p>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="ai-embeddings-key">
