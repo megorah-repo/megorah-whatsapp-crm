@@ -27,7 +27,7 @@ export async function GET() {
   try {
     const { supabase, accountId } = await getCurrentAccount()
 
-    const { data, error } = await db
+    const { data, error } = await supabase
       .from('ai_configs')
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
@@ -228,7 +228,15 @@ export async function POST(request: Request) {
     // so a partial save (e.g. flipping a toggle) doesn't wipe it.
     if (handoffProvided) shared.handoff_agent_id = handoffAgentId
     if (rawEmbeddingsKey) {
-      shared.embeddings_api_key = encrypt(rawEmbeddingsKey)
+      try {
+        shared.embeddings_api_key = encrypt(rawEmbeddingsKey)
+      } catch (err) {
+        console.error('[ai/config POST] embeddings encryption error:', err)
+        return NextResponse.json(
+          { error: 'The server encryption key is not configured correctly. Check ENCRYPTION_KEY in the deployment environment.' },
+          { status: 500 },
+        )
+      }
     } else if (clearEmbeddingsKey) {
       shared.embeddings_api_key = null
     }
