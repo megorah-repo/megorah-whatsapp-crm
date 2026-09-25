@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/lib/supabase/service-role'
 import { loadTwilioCallingConfig } from '@/lib/ai-calling/twilio-config'
 import { verifyTwilioSignature } from '@/lib/ai-calling/twilio'
+import { syncQueueFromCallStatus } from '@/lib/ai-calling/auto-run'
 
 function formDataToParams(form: FormData): URLSearchParams {
   const params = new URLSearchParams()
@@ -58,6 +59,8 @@ export async function POST(request: Request) {
       console.error('[ai-calling/status] update failed:', error)
       return NextResponse.json({ error: 'Could not update call status.' }, { status: 500 })
     }
+
+    await syncQueueFromCallStatus(sessionId, status, status === 'failed' ? params.get('ErrorMessage') : null)
 
     return NextResponse.json({ ok: true })
   } catch (err) {
