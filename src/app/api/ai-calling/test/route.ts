@@ -164,6 +164,7 @@ export async function POST(request: Request) {
       const root = baseUrl(request)
       const voiceUrl = root + '/api/ai-calling/voice?session_id=' + encodeURIComponent(session.id)
       const statusCallbackUrl = root + '/api/ai-calling/status?session_id=' + encodeURIComponent(session.id)
+      const recordingStatusCallbackUrl = root + '/api/ai-calling/recording?session_id=' + encodeURIComponent(session.id)
       const call = await createTwilioCall({
         to,
         from: actualFrom,
@@ -171,6 +172,7 @@ export async function POST(request: Request) {
         accountSid: twilio!.accountSid,
         authToken: twilio!.authToken,
         statusCallbackUrl,
+        recordingStatusCallbackUrl,
         timeLimitSeconds: maxCallMinutes * 60,
       })
 
