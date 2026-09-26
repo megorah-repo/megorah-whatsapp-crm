@@ -72,6 +72,7 @@ export async function createTwilioCall(args: {
   from: string
   voiceUrl: string
   statusCallbackUrl: string
+  recordingStatusCallbackUrl?: string
   timeLimitSeconds?: number
   accountSid: string
   authToken: string
@@ -90,7 +91,13 @@ export async function createTwilioCall(args: {
     StatusCallbackMethod: 'POST',
     StatusCallbackEvent: 'initiated ringing answered completed',
     TimeLimit: String(Math.min(Math.max(args.timeLimitSeconds ?? 720, 60), 14400)),
+    Record: 'true',
+    RecordingStatusCallbackEvent: 'in-progress completed absent',
   })
+  if (args.recordingStatusCallbackUrl) {
+    body.set('RecordingStatusCallback', args.recordingStatusCallbackUrl)
+    body.set('RecordingStatusCallbackMethod', 'POST')
+  }
 
   const response = await fetch(
     `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json`,
