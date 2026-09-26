@@ -38,7 +38,7 @@ export async function GET(
     const response = await fetch(recordingUrl, {
       headers: {
         Authorization:
-          'Basic ' + Buffer.from(\`${twilio.accountSid}:${twilio.authToken}\`).toString('base64'),
+          'Basic ' + Buffer.from(twilio.accountSid + ':' + twilio.authToken).toString('base64'),
       },
       cache: 'no-store',
     })
