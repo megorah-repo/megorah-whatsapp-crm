@@ -236,8 +236,64 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
 
     const destination = testNumber.trim().replace(/\s+/g, '');
     const caller = settings.businessNumber.trim().replace(/\s+/g, '');
-true
+    if (!/^\+[1-9]\d{7,14}$/.test(destination)) {
+      toast.error('Enter the customer test number in E.164 format, e.g. +9198XXXXXXXX.');
+      return;
+    }
+    if (!/^\+[1-9]\d{7,14}$/.test(caller)) {
+      toast.error('Enter your business/caller number in E.164 format, e.g. +9198XXXXXXXX.');
+      return;
+    }
+    const testReady =
+      Boolean(settings.callerName.trim()) &&
+      /^\+[1-9]\d{7,14}$/.test(caller) &&
+      /^\+[1-9]\d{7,14}$/.test(destination) &&
+      Boolean(settings.voice && settings.language) &&
+      Boolean(settings.greeting.trim() && settings.instructions.trim());
 
+    if (!testReady) {
+      toast.error('Complete the caller number, customer number, voice/language and call behavior first.');
+      return;
+    }
+
+    setTestCallLoading(true);
+    setTestCallStatus('starting');
+    try {
+      const response = await fetch('/api/ai-calling/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to_number: destination,
+          from_number: caller,
+          caller_name: settings.callerName,
+          greeting: settings.greeting,
+          instructions: settings.instructions,
+          language: settings.language === 'hinglish-IN' ? 'en-IN' : settings.language,
+          transfer_number: settings.transferNumber,
+          transfer_on_handoff: settings.transferOnHandoff,
+          max_call_minutes: settings.maxCallMinutes,
+          calling_provider: settings.callingProvider,
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        session_id?: string;
+        status?: string;
+      };
+      if (!response.ok) {
+        throw new Error(data.error || 'Could not start the test call.');
+      }
+      setTestSessionId(data.session_id ?? null);
+      setTestCallStatus(data.status ?? 'queued');
+      toast.success('Test call started. Your customer number should ring shortly.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not start the test call.';
+      setTestCallStatus('failed');
+      toast.error(message);
+    } finally {
+      setTestCallLoading(false);
+    }
+  };
   useEffect(() => {
     if (!testSessionId) return;
     let active = true;
