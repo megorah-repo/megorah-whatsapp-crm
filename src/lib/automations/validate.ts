@@ -72,6 +72,11 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
     case 'send_template':
       if (!nonEmpty(c.template_name)) {
         issues.push({ path: `${path}.template_name`, message: 'template name is required' })
+      } else if (String(c.template_name).startsWith('YOUR_APPROVED_')) {
+        issues.push({
+          path: `${path}.template_name`,
+          message: 'select an approved Meta template before activating this automation',
+        })
       }
       break
     case 'add_tag':
