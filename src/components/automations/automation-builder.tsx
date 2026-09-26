@@ -558,12 +558,18 @@ function DealPipelineFields({
 function SendTemplateFields({
   templateName,
   language,
+  variables,
   onChange,
   t,
 }: {
   templateName: string
   language: string
-  onChange: (patch: { template_name: string; language: string }) => void
+  variables?: Record<string, string>
+  onChange: (patch: {
+    template_name: string
+    language: string
+    variables?: Record<string, string>
+  }) => void
   t: ReturnType<typeof useTranslations>
 }) {
   const { templates } = useResources()
@@ -575,7 +581,7 @@ function SendTemplateFields({
           <Input
             value={templateName}
             onChange={(e) =>
-              onChange({ template_name: e.target.value, language })
+              onChange({ template_name: e.target.value, language, variables })
             }
             className="bg-muted text-foreground"
           />
@@ -584,7 +590,7 @@ function SendTemplateFields({
           <Input
             value={language}
             onChange={(e) =>
-              onChange({ template_name: templateName, language: e.target.value })
+              onChange({ template_name: templateName, language: e.target.value, variables })
             }
             className="bg-muted text-foreground"
           />
@@ -607,7 +613,11 @@ function SendTemplateFields({
         value={current}
         onChange={(e) => {
           const [name, lang] = e.target.value.split("::")
-          onChange({ template_name: name ?? "", language: lang ?? "" })
+          onChange({
+            template_name: name ?? "",
+            language: lang ?? "",
+            variables,
+          })
         }}
         className={SELECT_CLASS}
       >
@@ -1369,6 +1379,9 @@ function StepEditor({
         <SendTemplateFields
           templateName={(cfg.template_name as string) ?? ""}
           language={(cfg.language as string) ?? ""}
+          variables={
+            (cfg.variables as Record<string, string> | undefined) ?? undefined
+          }
           onChange={(patch) => set(patch)}
           t={t}
         />
