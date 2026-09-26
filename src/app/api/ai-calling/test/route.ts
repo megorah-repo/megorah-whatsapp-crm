@@ -58,6 +58,10 @@ export async function POST(request: Request) {
       ? await loadDirectCallingApiConfig(accountId)
       : null
 
+    if (requestedCallingProvider === 'direct-api' && !direct) {
+      return NextResponse.json({ error: 'Direct Calls API is not connected. Select Twilio Voice or connect the Direct Calls API first.' }, { status: 400 })
+    }
+
     const aiConfig = await loadAiConfig(db, accountId)
     if (!direct && !aiConfig) {
       return NextResponse.json({ error: 'AI is not configured or is disabled for this account. Or connect a Direct Calls API provider.' }, { status: 400 })
@@ -85,9 +89,6 @@ export async function POST(request: Request) {
       aiModel: aiConfig?.model ?? null,
     }
 
-    if (requestedCallingProvider === 'direct-api' && !direct) {
-      return NextResponse.json({ error: 'Direct Calls API is not connected. Select Twilio Voice or connect the Direct Calls API first.' }, { status: 400 })
-    }
     const provider = requestedCallingProvider
     const { data: session, error: sessionError } = await db
       .from('ai_call_sessions')
