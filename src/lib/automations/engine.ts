@@ -24,6 +24,7 @@ import { MAX_TAG_CHAIN_DEPTH, getTagChainDepth } from '@/lib/contacts/tag-chain'
 import { engineSendText, engineSendTemplate, engineSendInteractive } from './meta-send'
 import { validateInteractivePayload } from '@/lib/whatsapp/interactive'
 import { isDeliverableUrl } from '@/lib/webhooks/ssrf'
+import { cancelPendingAbandonedCart } from './commerce-events'
 
 // ------------------------------------------------------------
 // Public API
@@ -38,6 +39,8 @@ export interface AutomationContext {
   vars?: Record<string, unknown>
   /** The tag id that was added, for tag_added trigger. */
   tag_id?: string
+  /** Machine-originated ecommerce event, e.g. order.paid or checkout.abandoned. */
+  event_type?: string
   /** Agent the conversation was assigned to, for conversation_assigned. */
   agent_id?: string
   /** Button / list-row id the customer tapped, for interactive_reply. */
@@ -67,6 +70,26 @@ export interface DispatchInput {
 export async function runAutomationsForTrigger(input: DispatchInput): Promise<void> {
   try {
     const db = supabaseAdmin()
+
+    // A checkout-to-order conversion cancels any pending abandoned-cart wait
+    // for that same checkout. This protects both dashboard-created and
+    // API/n8n-created commerce events.
+    const commerceEvent = input.context?.event_type
+    if (
+      input.triggerType === 'commerce_event' &&
+      (commerceEvent === 'order.created' || commerceEvent === 'order.paid') &&
+      input.contactId
+    ) {
+      const checkoutId = String(input.context?.vars?.checkout_id ?? '').trim()
+      if (checkoutId) {
+        await cancelPendingAbandonedCart(
+          db,
+          input.accountId,
+          input.contactId,
+          checkoutId,
+        )
+      }
+    }
 
     // Tenant isolation. `contactId` can be caller-supplied (the manual
     // POST /api/automations/engine entrypoint reads it straight from the
@@ -710,6 +733,13 @@ export function triggerMatches(automation: Automation, ctx: AutomationContext | 
       const k = cfg.case_sensitive ? raw : raw.toLowerCase()
       return cfg.match_type === 'exact' ? haystack === k : haystack.includes(k)
     })
+  }
+
+  if (automation.trigger_type === 'commerce_event') {
+    const configuredEvent = String(
+      (automation.trigger_config as Record<string, unknown>)?.event ?? '',
+    )
+    return configuredEvent === (ctx?.event_type ?? String(ctx?.vars?.event_type ?? ''))
   }
 
   // Match on the tapped button / list-row id (exact). Lets multi-step
