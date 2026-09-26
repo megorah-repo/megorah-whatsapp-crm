@@ -144,7 +144,7 @@ export function TwilioOperationsCenter({
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
 
-  const [country, setCountry] = useState('IN')
+  const [country, setCountry] = useState('US')
   const [contains, setContains] = useState('')
   const [searchingNumbers, setSearchingNumbers] = useState(false)
   const [availableNumbers, setAvailableNumbers] = useState<TwilioNumber[]>([])
@@ -548,7 +548,7 @@ export function TwilioOperationsCenter({
                 Get a Twilio Voice Number
               </CardTitle>
               <CardDescription>
-                Search Twilio&apos;s live inventory and purchase a number without leaving the CRM.
+                Search Twilio&apos;s live inventory and purchase a voice number without leaving the CRM. For India outbound calling, use an international (non-Indian) Twilio caller number.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -559,7 +559,7 @@ export function TwilioOperationsCenter({
                     id="twilio-country"
                     value={country}
                     onChange={(event) => setCountry(event.target.value.toUpperCase())}
-                    placeholder="IN"
+                    placeholder="US"
                     maxLength={2}
                     disabled={!canEdit || searchingNumbers}
                   />
