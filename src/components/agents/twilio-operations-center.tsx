@@ -43,6 +43,9 @@ type CallRecord = {
   duration_seconds?: number
   price?: string | null
   price_unit?: string | null
+  crm_session_id?: string | null
+  recording_status?: string | null
+  recording_duration_seconds?: number
 }
 
 type UsageRecord = { usage?: string; count?: string; price?: number; price_unit?: string }
@@ -156,6 +159,7 @@ export function TwilioOperationsCenter({
   const [thirtyDayUsage, setThirtyDayUsage] = useState<UsageData | null>(null)
   const [usageLoading, setUsageLoading] = useState(false)
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
+  const [recordingSessionIds, setRecordingSessionIds] = useState<Set<string>>(new Set())
 
   const callerNumberChangeRef = useRef(onCallerNumberChange)
   callerNumberChangeRef.current = onCallerNumberChange
@@ -184,6 +188,24 @@ export function TwilioOperationsCenter({
       toast.error(error instanceof Error ? error.message : 'Could not load Twilio connection.')
     }
   }, [callerNumber])
+
+  const selectCallerNumber = async (value: string) => {
+    if (!connected || !canEdit || !value) return
+    try {
+      const response = await fetch('/api/ai-calling/twilio/numbers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ caller_number: value }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || 'Could not save the caller number.')
+      onCallerNumberChange(value)
+      toast.success('Caller number saved for CRM calls.')
+      void loadCalls()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save the caller number.')
+    }
+  }
 
   const refreshNumbers = useCallback(async () => {
     if (!connected) return
@@ -473,7 +495,7 @@ export function TwilioOperationsCenter({
                   <Label>Active Twilio caller number</Label>
                   <Select
                     value={callerNumber || undefined}
-                    onValueChange={(value) => value && onCallerNumberChange(value)}
+                    onValueChange={(value) => value && void selectCallerNumber(value)}
                     disabled={!canEdit || numbers.length === 0}
                   >
                     <SelectTrigger>
@@ -698,6 +720,7 @@ export function TwilioOperationsCenter({
                         <th className="px-4 py-3 font-medium">Status</th>
                         <th className="px-4 py-3 font-medium">Duration</th>
                         <th className="px-4 py-3 font-medium">Cost</th>
+                        <th className="px-4 py-3 font-medium">Recording</th>
                         <th className="px-4 py-3 font-medium">CRM</th>
                       </tr>
                     </thead>
@@ -717,6 +740,23 @@ export function TwilioOperationsCenter({
                             {call.price != null
                               ? `${(call.price_unit || currency).toUpperCase()} ${call.price}`
                               : '—'}
+                          </td>
+                          <td className="px-4 py-3">
+                            {call.crm_session_id && call.recording_status === 'completed' ? (
+                              <audio
+                                className="h-8 w-44"
+                                controls
+                                preload="none"
+                                src={`/api/ai-calling/recordings/${call.crm_session_id}`}
+                                aria-label={`Play recording for ${call.to || 'call'}`}
+                              />
+                            ) : call.crm_session_id ? (
+                              <span className="text-xs text-muted-foreground">
+                                {call.recording_status === 'in-progress' ? 'Processing…' : 'Not ready'}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             {call.crm_session_id ? (
