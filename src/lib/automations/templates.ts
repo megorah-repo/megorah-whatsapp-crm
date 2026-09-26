@@ -10,6 +10,13 @@ export type TemplateSlug =
   | 'out_of_office'
   | 'lead_qualifier'
   | 'follow_up_reminder'
+  | 'order_confirmation'
+  | 'payment_confirmation'
+  | 'shipment_tracking'
+  | 'out_for_delivery'
+  | 'delivery_confirmation'
+  | 'abandoned_cart_rescue'
+  | 'post_purchase_winback'
 
 export interface TemplateStepSeed {
   step_type: AutomationStepType
@@ -117,6 +124,161 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
         step_config: {
           text:
             "Just circling back — did you have any other questions for us? Happy to help!",
+        },
+      },
+    ],
+  },
+  order_confirmation: {
+    slug: 'order_confirmation',
+    name: 'Order Confirmation',
+    description: 'Send a WhatsApp order confirmation when a new order is created.',
+    trigger_type: 'commerce_event',
+    trigger_config: { event: 'order.created' },
+    steps: [
+      {
+        step_type: 'send_template',
+        step_config: {
+          template_name: 'YOUR_APPROVED_ORDER_CONFIRMATION_TEMPLATE',
+          language: 'en_US',
+          variables: {
+            '1': '{{vars.customer_name}}',
+            '2': '{{vars.order_number}}',
+            '3': '{{vars.total}}',
+          },
+        },
+      },
+    ],
+  },
+  payment_confirmation: {
+    slug: 'payment_confirmation',
+    name: 'Payment Confirmation',
+    description: 'Confirm successful payment on WhatsApp using your approved template.',
+    trigger_type: 'commerce_event',
+    trigger_config: { event: 'order.paid' },
+    steps: [
+      {
+        step_type: 'send_template',
+        step_config: {
+          template_name: 'YOUR_APPROVED_PAYMENT_TEMPLATE',
+          language: 'en_US',
+          variables: {
+            '1': '{{vars.customer_name}}',
+            '2': '{{vars.order_number}}',
+            '3': '{{vars.total}}',
+          },
+        },
+      },
+    ],
+  },
+  shipment_tracking: {
+    slug: 'shipment_tracking',
+    name: 'Shipment Tracking',
+    description: 'Send courier, tracking number and tracking link when an order ships.',
+    trigger_type: 'commerce_event',
+    trigger_config: { event: 'order.shipped' },
+    steps: [
+      {
+        step_type: 'send_template',
+        step_config: {
+          template_name: 'YOUR_APPROVED_SHIPMENT_TEMPLATE',
+          language: 'en_US',
+          variables: {
+            '1': '{{vars.customer_name}}',
+            '2': '{{vars.order_number}}',
+            '3': '{{vars.courier}}',
+            '4': '{{vars.tracking_number}}',
+            '5': '{{vars.tracking_url}}',
+          },
+        },
+      },
+    ],
+  },
+  out_for_delivery: {
+    slug: 'out_for_delivery',
+    name: 'Out for Delivery',
+    description: 'Notify the customer when the package is out for delivery.',
+    trigger_type: 'commerce_event',
+    trigger_config: { event: 'order.out_for_delivery' },
+    steps: [
+      {
+        step_type: 'send_template',
+        step_config: {
+          template_name: 'YOUR_APPROVED_OUT_FOR_DELIVERY_TEMPLATE',
+          language: 'en_US',
+          variables: {
+            '1': '{{vars.customer_name}}',
+            '2': '{{vars.order_number}}',
+            '3': '{{vars.tracking_url}}',
+          },
+        },
+      },
+    ],
+  },
+  delivery_confirmation: {
+    slug: 'delivery_confirmation',
+    name: 'Delivery Confirmation',
+    description: 'Thank the customer when the order is delivered.',
+    trigger_type: 'commerce_event',
+    trigger_config: { event: 'order.delivered' },
+    steps: [
+      {
+        step_type: 'send_template',
+        step_config: {
+          template_name: 'YOUR_APPROVED_DELIVERY_TEMPLATE',
+          language: 'en_US',
+          variables: {
+            '1': '{{vars.customer_name}}',
+            '2': '{{vars.order_number}}',
+          },
+        },
+      },
+    ],
+  },
+  abandoned_cart_rescue: {
+    slug: 'abandoned_cart_rescue',
+    name: 'Abandoned Cart Rescue',
+    description: 'Wait before sending a recovery template; the wait is cancelled when the same checkout converts.',
+    trigger_type: 'commerce_event',
+    trigger_config: { event: 'checkout.abandoned' },
+    steps: [
+      {
+        step_type: 'wait',
+        step_config: { amount: 1, unit: 'hours' },
+      },
+      {
+        step_type: 'send_template',
+        step_config: {
+          template_name: 'YOUR_APPROVED_ABANDONED_CART_TEMPLATE',
+          language: 'en_US',
+          variables: {
+            '1': '{{vars.customer_name}}',
+            '2': '{{vars.checkout_url}}',
+            '3': '{{vars.discount_code}}',
+          },
+        },
+      },
+    ],
+  },
+  post_purchase_winback: {
+    slug: 'post_purchase_winback',
+    name: 'Post-Purchase Winback',
+    description: 'Re-engage customers after delivery with a marketing template.',
+    trigger_type: 'commerce_event',
+    trigger_config: { event: 'order.delivered' },
+    steps: [
+      {
+        step_type: 'wait',
+        step_config: { amount: 7, unit: 'days' },
+      },
+      {
+        step_type: 'send_template',
+        step_config: {
+          template_name: 'YOUR_APPROVED_WINBACK_TEMPLATE',
+          language: 'en_US',
+          variables: {
+            '1': '{{vars.customer_name}}',
+            '2': '{{vars.order_number}}',
+          },
         },
       },
     ],
