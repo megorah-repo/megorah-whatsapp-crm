@@ -72,6 +72,7 @@ import {
   type StepPath,
 } from "@/lib/automations/builder-tree"
 import { cn } from "@/lib/utils"
+import { COMMERCE_EVENTS } from "@/lib/automations/commerce-events"
 
 // ------------------------------------------------------------
 // Types (builder-local — mirror the flattened rows we POST)
@@ -143,6 +144,7 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType }[] = [
   { value: "first_inbound_message" },
   { value: "keyword_match" },
   { value: "interactive_reply" },
+  { value: "commerce_event" },
   { value: "new_contact_created" },
   { value: "conversation_assigned" },
   { value: "tag_added" },
@@ -858,6 +860,9 @@ function TriggerCard({
             {type === "interactive_reply" && (
               <InteractiveReplyConfig config={config} onChange={onConfigChange} t={t} />
             )}
+            {type === "commerce_event" && (
+              <CommerceEventConfig config={config} onChange={onConfigChange} t={t} />
+            )}
             {type === "tag_added" && (
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">
@@ -891,6 +896,39 @@ function TriggerCard({
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function CommerceEventConfig({
+  config,
+  onChange,
+  t,
+}: {
+  config: Record<string, unknown>
+  onChange: (c: Record<string, unknown>) => void
+  t: ReturnType<typeof useTranslations>
+}) {
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-muted-foreground">
+        {t("commerce.eventLabel")}
+      </label>
+      <select
+        value={(config.event as string) ?? ""}
+        onChange={(e) => onChange({ ...config, event: e.target.value })}
+        className={SELECT_CLASS}
+      >
+        <option value="">{t("commerce.eventSelect")}</option>
+        {COMMERCE_EVENTS.map((event) => (
+          <option key={event} value={event}>
+            {event}
+          </option>
+        ))}
+      </select>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        {t("commerce.eventHint")}
+      </p>
     </div>
   )
 }
