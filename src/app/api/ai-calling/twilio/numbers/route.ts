@@ -2,9 +2,12 @@ import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { loadTwilioCallingConfig, saveTwilioCallingConfig } from '@/lib/ai-calling/twilio-config'
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const { accountId } = await requireRole('admin')
+    const body = await request.json().catch(() => ({}))
+    const requestedCallerNumber =
+      typeof body?.caller_number === 'string' ? body.caller_number.trim() : ''
     const config = await loadTwilioCallingConfig(accountId)
 
     if (!config) {
@@ -34,7 +37,15 @@ export async function POST() {
         )
       : []
 
-    const callerNumber = config.callerNumber ?? numbers[0]?.phone_number ?? null
+    const callerNumber = requestedCallerNumber
+      ? numbers.some((item: TwilioNumberLike) => item.phone_number === requestedCallerNumber)
+        ? requestedCallerNumber
+        : null
+      : config.callerNumber ?? numbers[0]?.phone_number ?? null
+
+    if (requestedCallerNumber && !callerNumber) {
+      return NextResponse.json({ error: 'Selected caller number is not a voice-enabled number on this Twilio account.' }, { status: 400 })
+    }
 
     await saveTwilioCallingConfig({
       accountId,
