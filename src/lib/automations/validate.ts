@@ -190,6 +190,25 @@ export function validateTriggerForActivation(
     if (!nonEmpty(cfg.tag_id)) {
       issues.push({ path: 'trigger.tag_id', message: 'tag is required' })
     }
+  } else if (triggerType === 'commerce_event') {
+    const event = cfg.event
+    const allowed = [
+      'order.created',
+      'order.paid',
+      'order.shipped',
+      'order.out_for_delivery',
+      'order.delivered',
+      'order.cancelled',
+      'checkout.abandoned',
+      'payment.failed',
+      'refund.created',
+    ]
+    if (typeof event !== 'string' || !allowed.includes(event)) {
+      issues.push({
+        path: 'trigger.event',
+        message: 'a valid commerce event is required',
+      })
+    }
   } else if (triggerType === 'interactive_reply') {
     const ids = cfg.reply_ids
     if (!Array.isArray(ids) || ids.length === 0) {
