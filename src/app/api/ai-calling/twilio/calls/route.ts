@@ -126,11 +126,11 @@ export async function GET(request: Request) {
     const sids = trimmed.map((call) => call.sid).filter((value): value is string => Boolean(value))
 
     const db = createServiceRoleClient()
-    const sessionsBySid = new Map<string, string>()
+    const sessionsBySid = new Map<string, { id: string; recording_status: string | null; recording_duration_seconds: number }>()
     if (sids.length) {
       const { data, error } = await db
         .from('ai_call_sessions')
-        .select('id, provider_call_sid')
+        .select('id, provider_call_sid, recording_status, recording_duration_seconds')
         .eq('account_id', accountId)
         .in('provider_call_sid', sids)
 
@@ -138,7 +138,13 @@ export async function GET(request: Request) {
         console.error('[ai-calling/twilio/calls] CRM session lookup failed:', error)
       } else {
         for (const row of data ?? []) {
-          if (row.provider_call_sid) sessionsBySid.set(row.provider_call_sid, row.id)
+          if (row.provider_call_sid) {
+            sessionsBySid.set(row.provider_call_sid, {
+              id: row.id,
+              recording_status: row.recording_status ?? null,
+              recording_duration_seconds: row.recording_duration_seconds ?? 0,
+            })
+          }
         }
       }
     }
@@ -151,7 +157,9 @@ export async function GET(request: Request) {
       count: trimmed.length,
       calls: trimmed.map((call) => ({
         sid: call.sid ?? '',
-        crm_session_id: call.sid ? sessionsBySid.get(call.sid) ?? null : null,
+        crm_session_id: call.sid ? sessionsBySid.get(call.sid)?.id ?? null : null,
+        recording_status: call.sid ? sessionsBySid.get(call.sid)?.recording_status ?? null : null,
+        recording_duration_seconds: call.sid ? sessionsBySid.get(call.sid)?.recording_duration_seconds ?? 0 : 0,
         direction: call.direction ?? null,
         status: call.status ?? null,
         from: call.from ?? null,
