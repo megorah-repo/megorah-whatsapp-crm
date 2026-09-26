@@ -8,6 +8,7 @@ import {
   resolveCommerceOwner,
   type CommerceContextVars,
   COMMERCE_EVENTS,
+  cancelPendingAbandonedCart,
 } from '@/lib/automations/commerce-events'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
@@ -139,7 +140,7 @@ export async function POST(request: Request) {
 
     let cancelledAbandonWaits = 0
     if (eventType === 'order.created' || eventType === 'order.paid') {
-      cancelledAbandonWaits = await cancelPendingAbandonedCartViaDb(
+      cancelledAbandonWaits = await cancelPendingAbandonedCart(
         db,
         ctx.accountId,
         resolved.contactId,
@@ -172,24 +173,3 @@ export async function POST(request: Request) {
   }
 }
 
-async function cancelPendingAbandonedCartViaDb(
-  db: ReturnType<typeof supabaseAdmin>,
-  accountId: string,
-  contactId: string,
-  checkoutId?: string,
-): Promise<number> {
-  if (!checkoutId) return 0
-  const { data, error } = await db
-    .from('automation_pending_executions')
-    .update({ status: 'cancelled' })
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .eq('status', 'pending')
-    .contains('context', { vars: { checkout_id: checkoutId } })
-    .select('id')
-  if (error) {
-    console.error('[api/v1/automation-events] cancel abandoned wait failed:', error.message)
-    return 0
-  }
-  return data?.length ?? 0
-}
