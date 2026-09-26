@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  AlertCircle,
   Bot,
   Check,
   CheckCircle2,
@@ -106,6 +107,15 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
   const [testCallLoading, setTestCallLoading] = useState(false);
   const [testCallStatus, setTestCallStatus] = useState<string | null>(null);
   const [testSessionId, setTestSessionId] = useState<string | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
+  const [serverReadiness, setServerReadiness] = useState<{
+    ready: boolean;
+    ready_count: number;
+    total_count: number;
+    checks: Array<{ id: string; label: string; ready: boolean; detail: string; severity: 'ok' | 'error' | 'warning' }>;
+    errors: Array<{ id: string; label: string; detail: string }>;
+    checked_at?: string;
+  } | null>(null);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -169,69 +179,64 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
     }
   };
 
+  const checkReady = async (showToast = true): Promise<boolean> => {
+    if (!canEdit || readinessLoading) return false;
+    setReadinessLoading(true);
+    try {
+      const destination = testNumber.trim().replace(/\s+/g, '');
+      const response = await fetch(
+        '/api/ai-calling/readiness?to_number=' + encodeURIComponent(destination),
+        { cache: 'no-store' },
+      );
+      const data = (await response.json().catch(() => ({}))) as {
+        ready?: boolean;
+        ready_count?: number;
+        total_count?: number;
+        checks?: Array<{ id: string; label: string; ready: boolean; detail: string; severity: 'ok' | 'error' | 'warning' }>;
+        errors?: Array<{ id: string; label: string; detail: string }>;
+        checked_at?: string;
+        error?: string;
+      };
+      if (!response.ok) throw new Error(data.error || 'Could not run the readiness check.');
+      const result = {
+        ready: Boolean(data.ready),
+        ready_count: Number(data.ready_count || 0),
+        total_count: Number(data.total_count || 0),
+        checks: data.checks || [],
+        errors: data.errors || [],
+        checked_at: data.checked_at,
+      };
+      setServerReadiness(result);
+      if (showToast) {
+        if (result.ready) {
+          toast.success('AI Calling is READY. You can place the test call now.');
+        } else {
+          const first = result.errors[0];
+          toast.error(first ? first.label + ': ' + first.detail : 'Setup is not ready yet.');
+        }
+      }
+      return result.ready;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not run the readiness check.';
+      toast.error(message);
+      return false;
+    } finally {
+      setReadinessLoading(false);
+    }
+  };
+
   const testCall = async () => {
     if (!canEdit || testCallLoading) return;
 
+    const ready = await checkReady(false);
+    if (!ready) {
+      toast.error('Test call blocked until Check Ready is fully green.');
+      return;
+    }
+
     const destination = testNumber.trim().replace(/\s+/g, '');
     const caller = settings.businessNumber.trim().replace(/\s+/g, '');
-    if (!/^\+[1-9]\d{7,14}$/.test(destination)) {
-      toast.error('Enter the customer test number in E.164 format, e.g. +9198XXXXXXXX.');
-      return;
-    }
-    if (!/^\+[1-9]\d{7,14}$/.test(caller)) {
-      toast.error('Enter your business/caller number in E.164 format, e.g. +9198XXXXXXXX.');
-      return;
-    }
-    const testReady =
-      Boolean(settings.callerName.trim()) &&
-      /^\+[1-9]\d{7,14}$/.test(caller) &&
-      /^\+[1-9]\d{7,14}$/.test(destination) &&
-      Boolean(settings.voice && settings.language) &&
-      Boolean(settings.greeting.trim() && settings.instructions.trim());
-
-    if (!testReady) {
-      toast.error('Complete the caller number, customer number, voice/language and call behavior first.');
-      return;
-    }
-
-    setTestCallLoading(true);
-    setTestCallStatus('starting');
-    try {
-      const response = await fetch('/api/ai-calling/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to_number: destination,
-          from_number: caller,
-          caller_name: settings.callerName,
-          greeting: settings.greeting,
-          instructions: settings.instructions,
-          language: settings.language === 'hinglish-IN' ? 'en-IN' : settings.language,
-          transfer_number: settings.transferNumber,
-          transfer_on_handoff: settings.transferOnHandoff,
-          max_call_minutes: settings.maxCallMinutes,
-          calling_provider: settings.callingProvider,
-        }),
-      });
-      const data = (await response.json().catch(() => ({}))) as {
-        error?: string;
-        session_id?: string;
-        status?: string;
-      };
-      if (!response.ok) {
-        throw new Error(data.error || 'Could not start the test call.');
-      }
-      setTestSessionId(data.session_id ?? null);
-      setTestCallStatus(data.status ?? 'queued');
-      toast.success('Test call started. Your customer number should ring shortly.');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not start the test call.';
-      setTestCallStatus('failed');
-      toast.error(message);
-    } finally {
-      setTestCallLoading(false);
-    }
-  };
+true
 
   useEffect(() => {
     if (!testSessionId) return;
@@ -258,11 +263,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
   }, [testSessionId]);
 
   const runReadinessCheck = () => {
-    if (!readiness.complete) {
-      toast.error('Complete the highlighted calling setup items first.');
-      return;
-    }
-    toast.success('AI Calling is ready. You can place a real test call.');
+    void checkReady(true);
   };
 
   if (!hydrated) {
@@ -426,19 +427,71 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                 </p>
               </div>
 
-              <Button
-                className="w-full"
-                size="lg"
-                onClick={testCall}
-                disabled={disabled || testCallLoading || !testNumber.trim()}
-              >
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={runReadinessCheck}
+                  disabled={disabled || readinessLoading}
+                >
+                  {readinessLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="mr-2 h-4 w-4" />
+                  )}
+                  {readinessLoading ? 'Checking…' : 'Check Ready'}
+                </Button>
+                <Button
+                  size="lg"
+                  onClick={testCall}
+                  disabled={disabled || testCallLoading || readinessLoading || !testNumber.trim()}
+                >
                 {testCallLoading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <PhoneOutgoing className="mr-2 h-4 w-4" />
                 )}
                 {testCallLoading ? 'Starting Call…' : 'Start Test Call'}
-              </Button>
+                </Button>
+              </div>
+
+              {serverReadiness && (
+                <div className={cn(
+                  'rounded-lg border p-3 text-sm',
+                  serverReadiness.ready
+                    ? 'border-emerald-500/30 bg-emerald-500/5'
+                    : 'border-red-500/25 bg-red-500/5',
+                )}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 font-medium">
+                      {serverReadiness.ready ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                      )}
+                      {serverReadiness.ready ? 'AI Calling READY' : 'AI Calling needs setup'}
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {serverReadiness.ready_count}/{serverReadiness.total_count} checks passed
+                    </span>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {serverReadiness.checks.map((check) => (
+                      <div key={check.id} className="flex items-start gap-2 text-xs">
+                        {check.ready ? (
+                          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                        ) : (
+                          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-600 dark:text-red-400" />
+                        )}
+                        <div>
+                          <p className="font-medium">{check.label}</p>
+                          {!check.ready && <p className="mt-0.5 text-muted-foreground">{check.detail}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {testCallStatus && (
                 <div className="rounded-lg border bg-background/70 p-3 text-xs">
@@ -662,12 +715,20 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
               <Separator className="my-4" />
               <Button
                 className="w-full"
-                variant={readiness.complete ? 'default' : 'outline'}
+                variant={serverReadiness?.ready ? 'default' : 'outline'}
                 onClick={runReadinessCheck}
-                disabled={!canEdit}
+                disabled={!canEdit || readinessLoading}
               >
-                <ShieldCheck className="mr-2 h-4 w-4" />
-                Run readiness check
+                {readinessLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <ShieldCheck className="mr-2 h-4 w-4" />
+                )}
+                {readinessLoading
+                  ? 'Checking Twilio + AI…'
+                  : serverReadiness?.ready
+                    ? 'Ready — Check Again'
+                    : 'Check Ready'}
               </Button>
             </CardContent>
           </Card>
@@ -728,7 +789,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
                 <div>
                   <p className="text-sm font-medium">Provider connection</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    When a Direct Calls API is connected, Test Call sends the request there and does not require OpenAI, Anthropic or Gemini. Twilio remains the fallback path when no Direct Calls API is connected.
+                    Twilio Voice is the default test path. Use Check Ready to verify the saved Twilio account, caller number, AI configuration and public webhook setup before any real call is placed.
                   </p>
                   <div className="mt-3 flex items-center gap-2 text-xs font-medium text-primary">
                     <UserRound className="h-3.5 w-3.5" />
