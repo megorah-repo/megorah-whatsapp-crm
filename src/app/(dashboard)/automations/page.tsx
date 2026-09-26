@@ -12,6 +12,12 @@ import {
   Trash2,
   FileText,
   MessageCircle,
+  ShoppingBag,
+  CreditCard,
+  Truck,
+  PackageCheck,
+  RotateCcw,
+  Megaphone,
   Clock,
   Users,
   PhoneCall,
@@ -49,6 +55,13 @@ const TEMPLATE_ORDER: TemplateSlug[] = [
   "out_of_office",
   "lead_qualifier",
   "follow_up_reminder",
+  "order_confirmation",
+  "payment_confirmation",
+  "shipment_tracking",
+  "out_for_delivery",
+  "delivery_confirmation",
+  "abandoned_cart_rescue",
+  "post_purchase_winback",
 ]
 
 const TEMPLATE_ICON: Record<TemplateSlug, typeof Zap> = {
@@ -56,6 +69,13 @@ const TEMPLATE_ICON: Record<TemplateSlug, typeof Zap> = {
   out_of_office: Clock,
   lead_qualifier: Users,
   follow_up_reminder: PhoneCall,
+  order_confirmation: ShoppingBag,
+  payment_confirmation: CreditCard,
+  shipment_tracking: Truck,
+  out_for_delivery: PackageCheck,
+  delivery_confirmation: PackageCheck,
+  abandoned_cart_rescue: RotateCcw,
+  post_purchase_winback: Megaphone,
 }
 
 export default function AutomationsPage() {
