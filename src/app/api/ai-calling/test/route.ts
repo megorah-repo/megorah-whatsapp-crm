@@ -53,15 +53,18 @@ export async function POST(request: Request) {
     }
 
     const db = createServiceRoleClient()
-    const direct = await loadDirectCallingApiConfig(accountId)
+    const requestedCallingProvider = body.calling_provider === 'direct-api' ? 'direct-api' : 'twilio'
+    const direct = requestedCallingProvider === 'direct-api'
+      ? await loadDirectCallingApiConfig(accountId)
+      : null
 
-    const aiConfig = direct ? null : await loadAiConfig(db, accountId)
+    const aiConfig = await loadAiConfig(db, accountId)
     if (!direct && !aiConfig) {
       return NextResponse.json({ error: 'AI is not configured or is disabled for this account. Or connect a Direct Calls API provider.' }, { status: 400 })
     }
 
     const twilio = direct ? null : await loadTwilioCallingConfig(accountId)
-    if (!direct && !twilio) {
+    if (requestedCallingProvider === 'twilio' && !twilio) {
       return NextResponse.json({ error: 'Connect a Twilio account or a Direct Calls API provider in the AI Calling panel first.' }, { status: 400 })
     }
 
@@ -82,7 +85,10 @@ export async function POST(request: Request) {
       aiModel: aiConfig?.model ?? null,
     }
 
-    const provider = direct ? 'direct-api' : 'twilio'
+    if (requestedCallingProvider === 'direct-api' && !direct) {
+      return NextResponse.json({ error: 'Direct Calls API is not connected. Select Twilio Voice or connect the Direct Calls API first.' }, { status: 400 })
+    }
+    const provider = requestedCallingProvider
     const { data: session, error: sessionError } = await db
       .from('ai_call_sessions')
       .insert({
