@@ -889,6 +889,10 @@
           "label": "Button / List Reply",
           "hint": "Customer taps a button or list row whose id matches — chain menus across automations"
         },
+        "commerce_event": {
+          "label": "Store / Commerce Event",
+          "hint": "Trigger from Shopify, Shopdeck, WooCommerce or n8n order and checkout events"
+        },
         "new_contact_created": {
           "label": "New Contact Created",
           "hint": "When a contact is auto-created from an incoming message"
@@ -913,6 +917,11 @@
       "replyIds": "Reply IDs",
       "replyIdsHint": "yes, no, more_info",
       "replyIdsHelp": "Comma-separated button/list-row ids to match, exact. Use the same ids you set on a Send Buttons / Send List step.",
+      "commerce": {
+        "eventLabel": "Commerce event",
+        "eventSelect": "Select an event…",
+        "eventHint": "Your store or n8n sends this event to the Megorah Automation API. Use the same checkout_id on abandoned and converted events to cancel recovery waits."
+      },
       "schedule": "Schedule",
       "scheduleHint": "Cron expression (e.g. 0 9 * * 1-5)",
       "active": "Active",
