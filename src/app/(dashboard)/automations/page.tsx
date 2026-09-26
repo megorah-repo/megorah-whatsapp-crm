@@ -86,6 +86,7 @@ export default function AutomationsPage() {
   const [error, setError] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Automation | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [copiedCommerceEndpoint, setCopiedCommerceEndpoint] = useState(false)
 
   async function load() {
     try {
@@ -197,6 +198,41 @@ export default function AutomationsPage() {
           {t("create")}
         </GatedButton>
       </div>
+
+      {canCreate && (
+        <section className="rounded-xl border border-border bg-card p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-foreground">{t("commerceApiTitle")}</h2>
+              <p className="mt-1 text-xs text-muted-foreground">{t("commerceApiDesc")}</p>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                const endpoint = `${window.location.origin}/api/v1/automation-events`
+                try {
+                  await navigator.clipboard.writeText(endpoint)
+                  setCopiedCommerceEndpoint(true)
+                  setTimeout(() => setCopiedCommerceEndpoint(false), 1800)
+                  toast.success(t("commerceApiCopied"))
+                } catch {
+                  toast.error(t("commerceApiCopyFailed"))
+                }
+              }}
+              className="inline-flex shrink-0 items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/80"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              {copiedCommerceEndpoint ? t("commerceApiCopied") : t("commerceApiCopy")}
+            </button>
+          </div>
+          <code className="mt-3 block overflow-x-auto rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+            {typeof window !== "undefined" ? `${window.location.origin}/api/v1/automation-events` : "/api/v1/automation-events"}
+          </code>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            {t("commerceApiEvents")}
+          </p>
+        </section>
+      )}
 
       {showTemplates && canCreate && (
         <section>
