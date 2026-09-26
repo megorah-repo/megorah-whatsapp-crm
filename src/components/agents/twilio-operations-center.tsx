@@ -159,7 +159,6 @@ export function TwilioOperationsCenter({
   const [thirtyDayUsage, setThirtyDayUsage] = useState<UsageData | null>(null)
   const [usageLoading, setUsageLoading] = useState(false)
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
-  const [recordingSessionIds, setRecordingSessionIds] = useState<Set<string>>(new Set())
 
   const callerNumberChangeRef = useRef(onCallerNumberChange)
   callerNumberChangeRef.current = onCallerNumberChange
