@@ -24,7 +24,6 @@ import { MAX_TAG_CHAIN_DEPTH, getTagChainDepth } from '@/lib/contacts/tag-chain'
 import { engineSendText, engineSendTemplate, engineSendInteractive } from './meta-send'
 import { validateInteractivePayload } from '@/lib/whatsapp/interactive'
 import { isDeliverableUrl } from '@/lib/webhooks/ssrf'
-import { cancelPendingAbandonedCart } from './commerce-events'
 
 // ------------------------------------------------------------
 // Public API
@@ -70,26 +69,6 @@ export interface DispatchInput {
 export async function runAutomationsForTrigger(input: DispatchInput): Promise<void> {
   try {
     const db = supabaseAdmin()
-
-    // A checkout-to-order conversion cancels any pending abandoned-cart wait
-    // for that same checkout. This protects both dashboard-created and
-    // API/n8n-created commerce events.
-    const commerceEvent = input.context?.event_type
-    if (
-      input.triggerType === 'commerce_event' &&
-      (commerceEvent === 'order.created' || commerceEvent === 'order.paid') &&
-      input.contactId
-    ) {
-      const checkoutId = String(input.context?.vars?.checkout_id ?? '').trim()
-      if (checkoutId) {
-        await cancelPendingAbandonedCart(
-          db,
-          input.accountId,
-          input.contactId,
-          checkoutId,
-        )
-      }
-    }
 
     // Tenant isolation. `contactId` can be caller-supplied (the manual
     // POST /api/automations/engine entrypoint reads it straight from the
