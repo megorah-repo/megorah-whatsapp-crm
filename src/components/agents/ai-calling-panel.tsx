@@ -47,6 +47,7 @@ interface CallingSettings {
   businessHoursOnly: boolean;
   maxCallMinutes: string;
   aiProvider: string;
+  callingProvider: 'twilio' | 'direct-api';
 }
 
 const DEFAULTS: CallingSettings = {
@@ -63,6 +64,7 @@ const DEFAULTS: CallingSettings = {
   businessHoursOnly: true,
   maxCallMinutes: '12',
   aiProvider: 'google-gemini',
+  callingProvider: 'twilio',
 };
 
 const VOICES = [
@@ -208,6 +210,7 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
           transfer_number: settings.transferNumber,
           transfer_on_handoff: settings.transferOnHandoff,
           max_call_minutes: settings.maxCallMinutes,
+          calling_provider: settings.callingProvider,
         }),
       });
       const data = (await response.json().catch(() => ({}))) as {
