@@ -465,7 +465,8 @@ export type AutomationTriggerType =
   | 'time_based'
   /** Customer tapped a reply button / list row whose id matches; lets
    *  multi-step menus be chained across automations. */
-  | 'interactive_reply';
+  | 'interactive_reply'
+  | 'commerce_event';
 
 export type AutomationStepType =
   | 'send_message'
