@@ -104,7 +104,6 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
   const [testCallLoading, setTestCallLoading] = useState(false);
   const [testCallStatus, setTestCallStatus] = useState<string | null>(null);
   const [testSessionId, setTestSessionId] = useState<string | null>(null);
-  const [directApiConnected, setDirectApiConnected] = useState(false);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -390,16 +389,13 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
             canEdit={canEdit}
             callerNumber={settings.businessNumber}
             onCallerNumberChange={(value) => update('businessNumber', value)}
-            onConnected={() => setDirectApiConnected(true)}
           />
 
-          {!directApiConnected && (
-            <TwilioOperationsCenter
-              canEdit={canEdit}
-              callerNumber={settings.businessNumber}
-              onCallerNumberChange={(value) => update('businessNumber', value)}
-            />
-          )}
+          <TwilioOperationsCenter
+            canEdit={canEdit}
+            callerNumber={settings.businessNumber}
+            onCallerNumberChange={(value) => update('businessNumber', value)}
+          />
 
           <Card className="border-primary/25 bg-primary/5">
             <CardHeader>
