@@ -43,7 +43,6 @@ type CallRecord = {
   duration_seconds?: number
   price?: string | null
   price_unit?: string | null
-  crm_session_id?: string | null
   recording_status?: string | null
   recording_duration_seconds?: number
 }
