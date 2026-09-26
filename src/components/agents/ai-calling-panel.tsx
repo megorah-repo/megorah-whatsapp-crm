@@ -445,6 +445,48 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
             </CardContent>
           </Card>
 
+          <Card className="border-primary/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <PhoneCall className="h-4 w-4 text-primary" />
+                Voice / Telephony Provider
+              </CardTitle>
+              <CardDescription>
+                This controls how the CRM places phone calls. It is separate from the AI model provider below.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="calling-provider">Calling provider</Label>
+                <Select
+                  value={settings.callingProvider}
+                  onValueChange={(value) =>
+                    update(
+                      'callingProvider',
+                      value === 'direct-api' ? 'direct-api' : 'twilio',
+                    )
+                  }
+                  disabled={disabled}
+                >
+                  <SelectTrigger id="calling-provider">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="twilio">
+                      Twilio Voice
+                    </SelectItem>
+                    <SelectItem value="direct-api">
+                      Direct Calls API
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Keep <span className="font-medium text-foreground">Twilio Voice</span> selected when you want CRM test calls, Twilio caller numbers, recordings and usage.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           <DirectCallingApiCard
             canEdit={canEdit}
             callerNumber={settings.businessNumber}
@@ -573,10 +615,10 @@ export function AiCallingPanel({ canEdit }: { canEdit: boolean }) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Bot className="h-4 w-4 text-primary" />
-                AI provider
+                AI model provider
               </CardTitle>
               <CardDescription>
-                Select which AI provider the phone agent will use for the test conversation.
+                This controls the AI model that powers the phone conversation. It is separate from the Voice / Telephony Provider above.
               </CardDescription>
             </CardHeader>
             <CardContent>
