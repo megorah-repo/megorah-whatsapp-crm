@@ -72,3 +72,5 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+      - name: MCP server typecheck
+        run: npm --prefix mcp-server ci --include=dev && npm --prefix mcp-server run typecheck
