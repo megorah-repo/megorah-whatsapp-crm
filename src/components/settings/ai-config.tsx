@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Sparkles, CheckCircle2, Trash2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
@@ -78,11 +78,23 @@ export function AiConfig() {
   const [handoffAgentId, setHandoffAgentId] = useState('');
   const [members, setMembers] = useState<AccountMember[]>([]);
 
-  // Guard keyed on the account (not a bare boolean) so an in-place
-  // account switch — ownership transfer, multi-account membership —
-  // refetches instead of showing the previous account's config. Mirrors
-  // the loadedAccountIdRef pattern in whatsapp-config.tsx.
-  const loadedAccountIdRef = useRef<string | null>(null);
+  const resetConfigState = useCallback(() => {
+    setConfigured(false);
+    setProvider('openai');
+    setModel(AI_PROVIDER_DEFAULT_MODEL.openai);
+    setApiKey('');
+    setKeyEdited(false);
+    setShowKey(false);
+    setHasStoredKey(false);
+    setEmbeddingsKey('');
+    setEmbeddingsKeyEdited(false);
+    setHasStoredEmbeddingsKey(false);
+    setSystemPrompt('');
+    setIsActive(false);
+    setAutoReplyEnabled(false);
+    setMaxPerConversation(3);
+    setHandoffAgentId('');
+  }, []);
 
   const fetchConfig = useCallback(async () => {
     setLoading(true);
@@ -90,6 +102,7 @@ export function AiConfig() {
       const res = await fetch('/api/ai/config');
       const data = await res.json();
       if (!res.ok) {
+        resetConfigState();
         toast.error(data.error ?? t('loadFailed'));
         return;
       }
@@ -108,17 +121,20 @@ export function AiConfig() {
         setHasStoredEmbeddingsKey(Boolean(data.has_embeddings_key));
         setEmbeddingsKey(data.has_embeddings_key ? MASKED_KEY : '');
         setEmbeddingsKeyEdited(false);
+      } else {
+        resetConfigState();
       }
     } catch {
+      resetConfigState();
       toast.error(t('loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [resetConfigState, t]);
 
   useEffect(() => {
-    if (!accountId || loadedAccountIdRef.current === accountId) return;
-    loadedAccountIdRef.current = accountId;
+    if (!accountId) return;
+    setMembers([]);
     void fetchConfig();
     // Members populate the handoff-target picker. Best-effort — on an
     // older deployment without the endpoint the picker just shows the
@@ -213,14 +229,7 @@ export function AiConfig() {
       const res = await fetch('/api/ai/config', { method: 'DELETE' });
       if (res.ok) {
         toast.success(t('removeSuccess'));
-        setConfigured(false);
-        setHasStoredKey(false);
-        setApiKey('');
-        setKeyEdited(false);
-        setIsActive(false);
-        setAutoReplyEnabled(false);
-        setSystemPrompt('');
-        setHandoffAgentId('');
+        resetConfigState();
       } else {
         const data = await res.json();
         toast.error(data.error ?? t('removeFailed'));

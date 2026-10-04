@@ -45,7 +45,7 @@ jobs:
           const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
           const next = pkg.dependencies?.next;
           const eslintNext = pkg.devDependencies?.['eslint-config-next'];
-          const allowed = '16.3.3';
+          const allowed = '16.3.8';
           if (next !== allowed || eslintNext !== allowed) {
             console.error(`Security blocker: Next.js must be exactly ${allowed}; found next=${next}, eslint-config-next=${eslintNext}`);
             process.exit(1);
