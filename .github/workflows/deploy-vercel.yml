@@ -17,7 +17,6 @@ jobs:
   deploy:
     name: Deploy production
     runs-on: ubuntu-latest
-    if: ${{ secrets.VERCEL_TOKEN != '' }}
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: team_7in0GW2ShIL0qU6i3mX2zacu
@@ -26,11 +25,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check deployment credentials
+        id: creds
+        shell: bash
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "VERCEL_TOKEN is not configured; skipping Vercel deploy."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Vercel deployment credentials are configured."
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Pull Vercel environment
+        if: steps.creds.outputs.configured == 'true'
         run: npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
 
       - name: Build Vercel production artifact
+        if: steps.creds.outputs.configured == 'true'
         run: npx --yes vercel@latest build --prod --token="$VERCEL_TOKEN"
 
       - name: Deploy prebuilt artifact
+        if: steps.creds.outputs.configured == 'true'
         run: npx --yes vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+
+      - name: Deployment status
+        if: steps.creds.outputs.configured != 'true'
+        run: echo "Deployment is configured and will activate automatically after VERCEL_TOKEN is added to GitHub Actions secrets."
