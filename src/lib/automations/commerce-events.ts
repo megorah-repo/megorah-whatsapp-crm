@@ -20,7 +20,7 @@ export function isCommerceEvent(value: unknown): value is CommerceEventType {
   return typeof value === 'string' && (COMMERCE_EVENTS as readonly string[]).includes(value)
 }
 
-export interface CommerceContextVars {
+export interface CommerceContextVars extends Record<string, unknown> {
   event_type: CommerceEventType
   event_id: string
   phone: string
