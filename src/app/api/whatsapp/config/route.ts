@@ -136,6 +136,21 @@ export async function GET() {
         phoneNumberId: config.phone_number_id,
         accessToken,
       })
+
+      // A valid access token is not the same thing as a fully live
+      // WhatsApp integration. Manual setup can intentionally stop after
+      // credential verification when no 2FA PIN was supplied. Do not show
+      // that state as "Connected" because inbound webhooks are not wired.
+      if (config.status !== 'connected' || !config.registered_at) {
+        return NextResponse.json({
+          connected: false,
+          reason: 'registration_incomplete',
+          phone_info: phoneInfo,
+          message:
+            'Meta credentials are valid, but this WhatsApp number is not fully registered for CRM webhooks yet. Add the 6-digit WhatsApp two-step PIN and save again, or finish setup with Meta Embedded Signup.',
+        })
+      }
+
       return NextResponse.json({ connected: true, phone_info: phoneInfo })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown Meta API error'
@@ -371,8 +386,14 @@ export async function POST(request: Request) {
         : verify_token
           ? encryptedVerifyToken
           : existing?.verify_token ?? null,
-      status: setupError ? 'disconnected' : 'connected',
-      connected_at: setupError ? null : new Date().toISOString(),
+      // "saved" is not "live": when registration was skipped because
+      // no PIN was supplied, credentials are valid but inbound webhooks
+      // are not wired. Keep the health status truthful so the GET route
+      // and UI cannot show a false-green connection.
+      status:
+        setupError || registrationSkipped ? 'disconnected' : 'connected',
+      connected_at:
+        setupError || registrationSkipped ? null : new Date().toISOString(),
       registered_at: setupError ? null : registeredAt,
       subscribed_apps_at: subscribedAppsAt ?? null,
       last_registration_error: setupError,
